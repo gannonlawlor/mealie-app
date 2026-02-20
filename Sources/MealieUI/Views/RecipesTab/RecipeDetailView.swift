@@ -121,12 +121,12 @@ struct RecipeDetailView: View {
             if !items.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(0..<items.count, id: \.self) { index in
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                             VStack(spacing: 4) {
-                                Text(items[index].0)
+                                Text(item.0)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Text(formatDuration(items[index].1))
+                                Text(formatDuration(item.1))
                                     .font(.subheadline)
                                     .bold()
                             }
@@ -151,8 +151,8 @@ struct RecipeDetailView: View {
             if !allTags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(0..<allTags.count, id: \.self) { index in
-                            Label(allTags[index].1, systemImage: allTags[index].0)
+                        ForEach(Array(allTags.enumerated()), id: \.offset) { _, tag in
+                            Label(tag.1, systemImage: tag.0)
                                 .font(.caption)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
@@ -203,26 +203,25 @@ struct RecipeDetailView: View {
                 .padding(.horizontal)
 
             VStack(alignment: .leading, spacing: 16) {
-                ForEach(0..<instructions.count, id: \.self) { index in
-                    let instruction = instructions[index]
+                ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let title = instruction.title, !title.isEmpty {
+                            Text(title)
+                                .font(.headline)
+                        }
 
-                    if let title = instruction.title, !title.isEmpty {
-                        Text(title)
-                            .font(.headline)
-                    }
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("\(index + 1)")
+                                .font(.subheadline)
+                                .bold()
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Color.accentColor)
+                                .clipShape(Circle())
 
-                    HStack(alignment: .top, spacing: 12) {
-                        Text("\(index + 1)")
-                            .font(.subheadline)
-                            .bold()
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Color.accentColor)
-                            .clipShape(Circle())
-
-                        Text(instruction.text ?? "")
-                            .font(.body)
-                            .fixedSize(horizontal: false, vertical: true)
+                            Text(instruction.text ?? "")
+                                .font(.body)
+                        }
                     }
                 }
             }
@@ -253,12 +252,12 @@ struct RecipeDetailView: View {
                         GridItem(.flexible()),
                         GridItem(.flexible()),
                     ], spacing: 12) {
-                        ForEach(0..<items.count, id: \.self) { index in
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                             VStack(spacing: 4) {
-                                Text(items[index].1)
+                                Text(item.1)
                                     .font(.subheadline)
                                     .bold()
-                                Text(items[index].0)
+                                Text(item.0)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

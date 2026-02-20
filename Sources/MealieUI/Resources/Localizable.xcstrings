@@ -1,5 +1,189 @@
 {
   "sourceLanguage" : "en",
-  "strings" : {},
+  "strings" : {
+    "" : {
+
+    },
+    "%lld" : {
+
+    },
+    "%lld done" : {
+
+    },
+    "%lld items remaining" : {
+
+    },
+    "1.0.0" : {
+
+    },
+    "About" : {
+
+    },
+    "Add an item..." : {
+
+    },
+    "Add Meal - %@" : {
+
+    },
+    "App Version" : {
+
+    },
+    "Are you sure you want to delete this recipe? This cannot be undone." : {
+
+    },
+    "Are you sure you want to sign out?" : {
+
+    },
+    "Built with" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Change Server" : {
+
+    },
+    "Completed" : {
+
+    },
+    "Connect" : {
+
+    },
+    "Connect to Server" : {
+
+    },
+    "Connected - v%@" : {
+
+    },
+    "Create" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete Recipe" : {
+
+    },
+    "Email" : {
+
+    },
+    "Enter a name for the new shopping list." : {
+
+    },
+    "Import" : {
+
+    },
+    "Import a Recipe" : {
+
+    },
+    "Import Recipe" : {
+
+    },
+    "Ingredients" : {
+
+    },
+    "Instructions" : {
+
+    },
+    "List name" : {
+
+    },
+    "Loading recipe..." : {
+
+    },
+    "Meal Plan" : {
+
+    },
+    "Meal Type" : {
+
+    },
+    "Mealie" : {
+
+    },
+    "New Shopping List" : {
+
+    },
+    "No items in this list" : {
+
+    },
+    "No meals planned" : {
+
+    },
+    "No recipes found" : {
+
+    },
+    "No shopping lists yet" : {
+
+    },
+    "Nutrition" : {
+
+    },
+    "Password" : {
+
+    },
+    "Paste a URL from a recipe website and Mealie will automatically import it." : {
+
+    },
+    "Profile" : {
+
+    },
+    "Recipe not found" : {
+
+    },
+    "Recipe URL" : {
+
+    },
+    "Recipes" : {
+
+    },
+    "Refresh Profile" : {
+
+    },
+    "Search recipes..." : {
+
+    },
+    "Server" : {
+
+    },
+    "Server URL (e.g. mealie.example.com)" : {
+
+    },
+    "Settings" : {
+
+    },
+    "Shopping" : {
+
+    },
+    "Shopping Lists" : {
+
+    },
+    "Sign In" : {
+
+    },
+    "Sign Out" : {
+
+    },
+    "Skip + SwiftUI" : {
+
+    },
+    "To Buy" : {
+
+    },
+    "Today" : {
+
+    },
+    "URL" : {
+
+    },
+    "v%@" : {
+
+    },
+    "Version" : {
+
+    },
+    "Your Recipe Manager" : {
+
+    }
+  },
   "version" : "1.0"
 }

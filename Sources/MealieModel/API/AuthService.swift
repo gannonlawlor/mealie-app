@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 import SkipFuse
 
 public class AuthService: @unchecked Sendable {

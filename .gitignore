@@ -14,5 +14,7 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+Android/.gradle/
+Android/build/
 .DS_Store
 Thumbs.db

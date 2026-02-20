@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import OSLog
 import SkipFuse
 
 @MainActor @Observable public class MealPlanViewModel {
@@ -62,7 +61,7 @@ import SkipFuse
             isLoading = false
         } catch {
             errorMessage = "Failed to load meal plan."
-            logger.error("Failed to load meal plans: \(error)")
+            print("Failed to load meal plans: \(error)")
             isLoading = false
         }
     }
@@ -71,7 +70,7 @@ import SkipFuse
         do {
             todayEntries = try await MealieAPI.shared.getTodayMealPlan()
         } catch {
-            logger.error("Failed to load today's meal plan: \(error)")
+            print("Failed to load today's meal plan: \(error)")
         }
     }
 
@@ -99,7 +98,7 @@ import SkipFuse
             let _ = try await MealieAPI.shared.createMealPlan(plan)
             await loadWeek()
         } catch {
-            logger.error("Failed to create meal plan: \(error)")
+            print("Failed to create meal plan: \(error)")
         }
     }
 
@@ -108,7 +107,7 @@ import SkipFuse
             try await MealieAPI.shared.deleteMealPlan(id: id)
             await loadWeek()
         } catch {
-            logger.error("Failed to delete meal plan: \(error)")
+            print("Failed to delete meal plan: \(error)")
         }
     }
 }

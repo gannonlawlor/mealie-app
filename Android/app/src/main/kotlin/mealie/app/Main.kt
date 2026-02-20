@@ -1,4 +1,4 @@
-package io.mealie.app
+package mealie.app
 
 import skip.lib.*
 import skip.model.*
@@ -18,7 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
-internal val logger: SkipLogger = SkipLogger(subsystem = "io.mealie.app", category = "MealieApp")
+internal val logger: SkipLogger = SkipLogger(subsystem = "mealie.app", category = "MealieApp")
 
 open class AndroidAppMain: Application {
     constructor() {

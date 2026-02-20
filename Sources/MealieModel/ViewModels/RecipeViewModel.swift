@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import OSLog
 import SkipFuse
 
 @MainActor @Observable public class RecipeViewModel {
@@ -50,7 +49,7 @@ import SkipFuse
             isLoading = false
         } catch {
             errorMessage = "Failed to load recipes."
-            logger.error("Failed to load recipes: \(error)")
+            print("Failed to load recipes: \(error)")
             isLoading = false
         }
     }
@@ -67,7 +66,7 @@ import SkipFuse
             selectedRecipe = try await MealieAPI.shared.getRecipe(slug: slug)
             isLoadingDetail = false
         } catch {
-            logger.error("Failed to load recipe detail: \(error)")
+            print("Failed to load recipe detail: \(error)")
             isLoadingDetail = false
         }
     }
@@ -77,7 +76,7 @@ import SkipFuse
             let response = try await MealieAPI.shared.getCategories()
             categories = response.items
         } catch {
-            logger.error("Failed to load categories: \(error)")
+            print("Failed to load categories: \(error)")
         }
     }
 
@@ -86,7 +85,7 @@ import SkipFuse
             let response = try await MealieAPI.shared.getTags()
             tags = response.items
         } catch {
-            logger.error("Failed to load tags: \(error)")
+            print("Failed to load tags: \(error)")
         }
     }
 
@@ -96,7 +95,7 @@ import SkipFuse
             recipes.removeAll { $0.slug == slug }
             return true
         } catch {
-            logger.error("Failed to delete recipe: \(error)")
+            print("Failed to delete recipe: \(error)")
             return false
         }
     }
@@ -115,7 +114,7 @@ import SkipFuse
             await loadRecipes(reset: true)
         } catch {
             importMessage = "Failed to import recipe. Check the URL."
-            logger.error("Failed to import recipe: \(error)")
+            print("Failed to import recipe: \(error)")
             isImporting = false
         }
     }

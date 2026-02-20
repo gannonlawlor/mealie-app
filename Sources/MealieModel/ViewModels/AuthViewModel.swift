@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import OSLog
 import SkipFuse
 
 @MainActor @Observable public class AuthViewModel {
@@ -80,7 +79,7 @@ import SkipFuse
         do {
             currentUser = try await MealieAPI.shared.getCurrentUser()
         } catch {
-            logger.error("Failed to load user: \(error)")
+            print("Failed to load user: \(error)")
         }
     }
 

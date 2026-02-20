@@ -1,8 +1,16 @@
 import Foundation
+#if canImport(OSLog)
 import OSLog
+#endif
 import SkipFuse
 
-let logger = Logger(subsystem: "io.mealie.app", category: "API")
+func logInfo(_ message: String) {
+    #if canImport(OSLog)
+    Logger(subsystem: "io.mealie.app", category: "API").info("\(message)")
+    #else
+    print("[API] \(message)")
+    #endif
+}
 
 public enum APIError: Error {
     case invalidURL
@@ -67,7 +75,7 @@ public class MealieAPI: @unchecked Sendable {
     }
 
     func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
-        logger.info("\(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "")")
+        logInfo("\(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "")")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -75,7 +83,7 @@ public class MealieAPI: @unchecked Sendable {
             throw APIError.noData
         }
 
-        logger.info("Response: \(httpResponse.statusCode)")
+        logInfo("Response: \(httpResponse.statusCode)")
 
         if httpResponse.statusCode == 401 {
             throw APIError.unauthorized

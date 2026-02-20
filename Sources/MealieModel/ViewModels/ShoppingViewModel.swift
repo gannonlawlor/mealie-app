@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import OSLog
 import SkipFuse
 
 @MainActor @Observable public class ShoppingViewModel {
@@ -22,7 +21,7 @@ import SkipFuse
             isLoading = false
         } catch {
             errorMessage = "Failed to load shopping lists."
-            logger.error("Failed to load shopping lists: \(error)")
+            print("Failed to load shopping lists: \(error)")
             isLoading = false
         }
     }
@@ -33,7 +32,7 @@ import SkipFuse
             selectedList = try await MealieAPI.shared.getShoppingList(id: id)
             isLoading = false
         } catch {
-            logger.error("Failed to load shopping list: \(error)")
+            print("Failed to load shopping list: \(error)")
             isLoading = false
         }
     }
@@ -43,7 +42,7 @@ import SkipFuse
             let newList = try await MealieAPI.shared.createShoppingList(name: name)
             shoppingLists.append(newList)
         } catch {
-            logger.error("Failed to create shopping list: \(error)")
+            print("Failed to create shopping list: \(error)")
         }
     }
 
@@ -52,7 +51,7 @@ import SkipFuse
             try await MealieAPI.shared.deleteShoppingList(id: id)
             shoppingLists.removeAll { $0.id == id }
         } catch {
-            logger.error("Failed to delete shopping list: \(error)")
+            print("Failed to delete shopping list: \(error)")
         }
     }
 
@@ -69,7 +68,7 @@ import SkipFuse
             newItemNote = ""
             await loadShoppingList(id: listId)
         } catch {
-            logger.error("Failed to add item: \(error)")
+            print("Failed to add item: \(error)")
         }
     }
 
@@ -83,7 +82,7 @@ import SkipFuse
                 await loadShoppingList(id: listId)
             }
         } catch {
-            logger.error("Failed to toggle item: \(error)")
+            print("Failed to toggle item: \(error)")
         }
     }
 
@@ -92,7 +91,7 @@ import SkipFuse
             try await MealieAPI.shared.addRecipeToShoppingList(listId: listId, recipeId: recipeId)
             await loadShoppingList(id: listId)
         } catch {
-            logger.error("Failed to add recipe ingredients: \(error)")
+            print("Failed to add recipe ingredients: \(error)")
         }
     }
 }

@@ -1,9 +1,9 @@
 import Foundation
 import MealieUI
+#if canImport(OSLog)
 import OSLog
+#endif
 import SwiftUI
-
-fileprivate let logger: Logger = Logger(subsystem: "io.mealie.app", category: "MealieApp")
 
 let androidSDK = ProcessInfo.processInfo.environment["android.os.Build.VERSION.SDK_INT"].flatMap({ Int($0) })
 
@@ -14,7 +14,7 @@ public struct RootView: View {
     public var body: some View {
         ContentView()
             .task {
-                logger.log("Mealie App started on \(androidSDK != nil ? "Android" : "iOS")")
+                print("Mealie App started on \(androidSDK != nil ? "Android" : "iOS")")
             }
     }
 }
