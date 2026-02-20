@@ -1,0 +1,105 @@
+import Foundation
+import SkipFuse
+#if os(Android)
+import SkipFuseUI
+#else
+import SwiftUI
+#endif
+import MealieModel
+
+struct SettingsView: View {
+    @Bindable var authVM: AuthViewModel
+    @State var showLogoutAlert = false
+
+    var body: some View {
+        List {
+            // User Profile Section
+            if let user = authVM.currentUser {
+                Section("Profile") {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(Color.accentColor)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(user.fullName ?? user.username ?? "User")
+                                .font(.headline)
+                            Text(user.email ?? "")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
+            // Server Info
+            Section("Server") {
+                HStack {
+                    Text("URL")
+                    Spacer()
+                    Text(AuthService.shared.savedServerURL ?? "Not connected")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if let info = authVM.serverInfo {
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text("v\(info.version)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // App Info
+            Section("About") {
+                HStack {
+                    Text("App Version")
+                    Spacer()
+                    Text("1.0.0")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Built with")
+                    Spacer()
+                    Text("Skip + SwiftUI")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // Actions
+            Section {
+                Button(action: {
+                    Task { await authVM.loadCurrentUser() }
+                }) {
+                    Label("Refresh Profile", systemImage: "arrow.clockwise")
+                }
+
+                Button(role: .destructive, action: { showLogoutAlert = true }) {
+                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            }
+        }
+        .navigationTitle("Settings")
+        .alert("Sign Out", isPresented: $showLogoutAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sign Out", role: .destructive) {
+                authVM.logout()
+            }
+        } message: {
+            Text("Are you sure you want to sign out?")
+        }
+        .task {
+            if authVM.serverInfo == nil {
+                do {
+                    authVM.serverInfo = try await MealieAPI.shared.getAppInfo()
+                } catch {
+                    // Ignore
+                }
+            }
+        }
+    }
+}

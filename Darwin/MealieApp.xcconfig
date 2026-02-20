@@ -1,0 +1,34 @@
+#include "../Skip.env"
+
+SKIP_ACTION = launch
+
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor
+
+INFOPLIST_FILE = Info.plist
+GENERATE_INFOPLIST_FILE = YES
+
+INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphone*] = YES
+INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphone*] = YES
+INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphone*] = YES
+INFOPLIST_KEY_UIStatusBarStyle[sdk=iphone*] = UIStatusBarStyleDefault
+INFOPLIST_KEY_UISupportedInterfaceOrientations[sdk=iphone*] = UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
+
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+MACOSX_DEPLOYMENT_TARGET = 14.0
+SUPPORTS_MACCATALYST = NO
+
+TARGETED_DEVICE_FAMILY = 1,2
+
+SWIFT_EMIT_LOC_STRINGS = YES
+
+PRODUCT_MODULE_NAME = $(PRODUCT_NAME:c99extidentifier)App
+
+SDKROOT = auto
+SUPPORTED_PLATFORMS = iphoneos iphonesimulator macosx
+
+SWIFT_VERSION = 5
+
+CODE_SIGNING_REQUIRED = NO
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_ENTITLEMENTS = Entitlements.plist
