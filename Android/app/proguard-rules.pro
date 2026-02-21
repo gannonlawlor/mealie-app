@@ -4,4 +4,4 @@
 -keep class kotlin.jvm.functions.** {*;}
 -keep class com.sun.jna.** { *; }
 -keep class * implements com.sun.jna.** { *; }
--keep class io.mealie.app.** { *; }
+-keep class mealie.app.** { *; }

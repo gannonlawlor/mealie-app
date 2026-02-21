@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import SkipFuse
 
+private let logger = Log(category: "Shopping")
+
 @MainActor @Observable public class ShoppingViewModel {
     public var shoppingLists: [ShoppingList] = []
     public var selectedList: ShoppingList? = nil
@@ -28,7 +30,7 @@ import SkipFuse
             if shoppingLists.isEmpty {
                 errorMessage = "Failed to load shopping lists."
             }
-            print("Failed to load shopping lists: \(error)")
+            logger.error("Failed to load shopping lists: \(error)")
             isLoading = false
         }
     }
@@ -48,7 +50,7 @@ import SkipFuse
             if selectedList == nil {
                 errorMessage = "Failed to load shopping list."
             }
-            print("Failed to load shopping list: \(error)")
+            logger.error("Failed to load shopping list: \(error)")
             isLoading = false
         }
     }
@@ -59,7 +61,7 @@ import SkipFuse
             shoppingLists.append(newList)
         } catch {
             errorMessage = "Failed to create shopping list."
-            print("Failed to create shopping list: \(error)")
+            logger.error("Failed to create shopping list: \(error)")
         }
     }
 
@@ -69,7 +71,7 @@ import SkipFuse
             shoppingLists.removeAll { $0.id == id }
         } catch {
             errorMessage = "Failed to delete shopping list."
-            print("Failed to delete shopping list: \(error)")
+            logger.error("Failed to delete shopping list: \(error)")
         }
     }
 
@@ -87,7 +89,7 @@ import SkipFuse
             await loadShoppingList(id: listId)
         } catch {
             errorMessage = "Failed to add item."
-            print("Failed to add item: \(error)")
+            logger.error("Failed to add item: \(error)")
         }
     }
 
@@ -100,7 +102,7 @@ import SkipFuse
             }
         } catch {
             errorMessage = "Failed to delete item."
-            print("Failed to delete item: \(error)")
+            logger.error("Failed to delete item: \(error)")
         }
     }
 
@@ -115,7 +117,7 @@ import SkipFuse
             }
         } catch {
             errorMessage = "Failed to update item."
-            print("Failed to toggle item: \(error)")
+            logger.error("Failed to toggle item: \(error)")
         }
     }
 
@@ -125,7 +127,7 @@ import SkipFuse
             await loadShoppingList(id: listId)
         } catch {
             errorMessage = "Failed to add recipe ingredients."
-            print("Failed to add recipe ingredients: \(error)")
+            logger.error("Failed to add recipe ingredients: \(error)")
         }
     }
 }

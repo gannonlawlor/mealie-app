@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import SkipFuse
 
+private let logger = Log(category: "Auth")
+
 @MainActor @Observable public class AuthViewModel {
     public var serverURL: String = ""
     public var email: String = ""
@@ -67,15 +69,15 @@ import SkipFuse
                 errorMessage = "Server error: \(msg)"
             case .decodingError(let inner):
                 errorMessage = "Login failed. Please try again."
-                print("Login decoding error: \(inner)")
+                logger.error("Login decoding error: \(inner)")
             default:
                 errorMessage = "Login failed. Please try again."
-                print("Login API error: \(error)")
+                logger.error("Login API error: \(error)")
             }
             isLoading = false
         } catch {
             errorMessage = "Connection failed. Check your network."
-            print("Login error: \(error)")
+            logger.error("Login error: \(error)")
             isLoading = false
         }
     }
@@ -84,7 +86,7 @@ import SkipFuse
         do {
             currentUser = try await MealieAPI.shared.getCurrentUser()
         } catch {
-            print("Failed to load user: \(error)")
+            logger.error("Failed to load user: \(error)")
         }
     }
 

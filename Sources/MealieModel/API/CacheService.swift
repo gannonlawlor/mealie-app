@@ -1,6 +1,8 @@
 import Foundation
 import SkipFuse
 
+private let logger = Log(category: "Cache")
+
 public class CacheService: @unchecked Sendable {
     public static let shared = CacheService()
 
@@ -100,7 +102,7 @@ public class CacheService: @unchecked Sendable {
             let fileURL = dir.appendingPathComponent(filename)
             try data.write(to: fileURL)
         } catch {
-            print("Cache save error (\(filename)): \(error)")
+            logger.error("Cache save error (\(filename)): \(error)")
         }
     }
 

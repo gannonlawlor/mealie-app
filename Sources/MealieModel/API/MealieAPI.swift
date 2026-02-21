@@ -1,15 +1,14 @@
 import Foundation
-#if canImport(OSLog)
-import OSLog
-#endif
 import SkipFuse
 
+private let logger = Log(category: "API")
+
 func logInfo(_ message: String) {
-    #if canImport(OSLog)
-    Logger(subsystem: "io.mealie.app", category: "API").info("\(message)")
-    #else
-    print("[API] \(message)")
-    #endif
+    logger.info(message)
+}
+
+func logError(_ message: String) {
+    logger.error(message)
 }
 
 public enum APIError: Error {

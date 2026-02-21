@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import SkipFuse
 
+private let logger = Log(category: "Recipes")
+
 @MainActor @Observable public class RecipeViewModel {
     public var recipes: [RecipeSummary] = []
     public var selectedRecipe: Recipe? = nil
@@ -60,7 +62,7 @@ import SkipFuse
             isLoading = false
         } catch {
             errorMessage = "Failed to load recipes."
-            print("Failed to load recipes: \(error)")
+            logger.error("Failed to load recipes: \(error)")
             isLoading = false
         }
     }
@@ -87,7 +89,7 @@ import SkipFuse
             if selectedRecipe == nil {
                 errorMessage = "Failed to load recipe."
             }
-            print("Failed to load recipe detail: \(error)")
+            logger.error("Failed to load recipe detail: \(error)")
             isLoadingDetail = false
         }
     }
@@ -101,7 +103,7 @@ import SkipFuse
             categories = response.items
             CacheService.shared.saveCategories(response.items)
         } catch {
-            print("Failed to load categories: \(error)")
+            logger.error("Failed to load categories: \(error)")
         }
     }
 
@@ -114,7 +116,7 @@ import SkipFuse
             tags = response.items
             CacheService.shared.saveTags(response.items)
         } catch {
-            print("Failed to load tags: \(error)")
+            logger.error("Failed to load tags: \(error)")
         }
     }
 
@@ -125,7 +127,7 @@ import SkipFuse
             return true
         } catch {
             errorMessage = "Failed to delete recipe."
-            print("Failed to delete recipe: \(error)")
+            logger.error("Failed to delete recipe: \(error)")
             return false
         }
     }
@@ -144,7 +146,7 @@ import SkipFuse
             await loadRecipes(reset: true)
         } catch {
             importMessage = "Failed to import recipe. Check the URL."
-            print("Failed to import recipe: \(error)")
+            logger.error("Failed to import recipe: \(error)")
             isImporting = false
         }
     }
@@ -189,7 +191,7 @@ import SkipFuse
                 favoriteRecipes.remove(slug)
             }
             errorMessage = "Failed to update favorite."
-            print("Failed to toggle favorite: \(error)")
+            logger.error("Failed to toggle favorite: \(error)")
         }
     }
 
@@ -202,7 +204,7 @@ import SkipFuse
             return true
         } catch {
             errorMessage = "Failed to update recipe."
-            print("Failed to update recipe: \(error)")
+            logger.error("Failed to update recipe: \(error)")
             return false
         }
     }

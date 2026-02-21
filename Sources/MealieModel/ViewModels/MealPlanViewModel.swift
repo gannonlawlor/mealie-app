@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import SkipFuse
 
+private let logger = Log(category: "MealPlan")
+
 @MainActor @Observable public class MealPlanViewModel {
     public var weekEntries: [String: [MealPlanEntry]] = [:]
     public var todayEntries: [MealPlanEntry] = []
@@ -60,7 +62,7 @@ import SkipFuse
             if weekEntries.isEmpty {
                 errorMessage = "Failed to load meal plan."
             }
-            print("Failed to load meal plans: \(error)")
+            logger.error("Failed to load meal plans: \(error)")
             isLoading = false
         }
     }
@@ -83,7 +85,7 @@ import SkipFuse
             todayEntries = try await MealieAPI.shared.getTodayMealPlan()
         } catch {
             errorMessage = "Failed to load today's meal plan."
-            print("Failed to load today's meal plan: \(error)")
+            logger.error("Failed to load today's meal plan: \(error)")
         }
     }
 
@@ -112,7 +114,7 @@ import SkipFuse
             await loadWeek()
         } catch {
             errorMessage = "Failed to add meal plan."
-            print("Failed to create meal plan: \(error)")
+            logger.error("Failed to create meal plan: \(error)")
         }
     }
 
@@ -122,7 +124,7 @@ import SkipFuse
             await loadWeek()
         } catch {
             errorMessage = "Failed to delete meal plan."
-            print("Failed to delete meal plan: \(error)")
+            logger.error("Failed to delete meal plan: \(error)")
         }
     }
 }

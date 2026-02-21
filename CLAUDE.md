@@ -68,8 +68,9 @@ These SwiftUI APIs are **not available** in SkipFuseUI (Android). Avoid them or 
 
 ## Key Config Values
 
-- **Bundle ID**: `io.mealie.app` (in Skip.env as `PRODUCT_BUNDLE_IDENTIFIER`)
-- **Android package name**: `mealie.app` (in Skip.env as `ANDROID_PACKAGE_NAME`) — must match `rootProject.name` in Gradle, NOT the bundle ID
+- **Bundle ID (iOS)**: `com.jackabee.mealie` (in Skip.env as `PRODUCT_BUNDLE_IDENTIFIER`)
+- **Application ID (Android)**: `com.jackabee.mealie` (in Skip.env as `ANDROID_APPLICATION_ID`)
+- **Android package name**: `mealie.app` (in Skip.env as `ANDROID_PACKAGE_NAME`) — must match `rootProject.name` in Gradle (derived from SPM package name) and Kotlin source path. This is NOT the user-facing app ID.
 - **Xcode project**: `Darwin/MealieApp.xcodeproj`, scheme `"MealieApp App"`
 - The pbxproj must have `XCLocalSwiftPackageReference` pointing to `..` (SPM root) or the skipstone build plugin won't run
 

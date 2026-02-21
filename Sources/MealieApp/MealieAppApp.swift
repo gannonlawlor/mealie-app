@@ -14,7 +14,11 @@ public struct RootView: View {
     public var body: some View {
         ContentView()
             .task {
-                print("Mealie App started on \(androidSDK != nil ? "Android" : "iOS")")
+                #if canImport(OSLog)
+                Logger(subsystem: "com.jackabee.mealie", category: "App").info("Mealie App started on \(androidSDK != nil ? "Android" : "iOS")")
+                #else
+                print("[App] Mealie App started on \(androidSDK != nil ? "Android" : "iOS")")
+                #endif
             }
     }
 }
