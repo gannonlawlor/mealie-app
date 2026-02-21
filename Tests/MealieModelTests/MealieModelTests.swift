@@ -1,14 +1,13 @@
 import XCTest
-import OSLog
 import Foundation
 @testable import MealieModel
 
-let logger: Logger = Logger(subsystem: "MealieModel", category: "Tests")
-
-@available(macOS 13, *)
 final class MealieModelTests: XCTestCase {
-    func testBasic() throws {
-        logger.log("running testBasic")
-        XCTAssertEqual(1 + 2, 3, "basic test")
+    func testModuleImports() {
+        // Sanity check that MealieModel module is importable and types are accessible
+        XCTAssertNotNil(AuthToken.self)
+        XCTAssertNotNil(Recipe.self)
+        XCTAssertNotNil(MealPlanEntry.self)
+        XCTAssertNotNil(ShoppingList.self)
     }
 }
