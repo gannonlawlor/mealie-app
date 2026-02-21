@@ -10,6 +10,7 @@ import MealieModel
 struct RecipeDetailView: View {
     @Bindable var recipeVM: RecipeViewModel
     let slug: String
+    var onDelete: (() -> Void)? = nil
     @State var showDeleteAlert = false
     @Environment(\.dismiss) var dismiss
 
@@ -41,7 +42,13 @@ struct RecipeDetailView: View {
             Button("Delete", role: .destructive) {
                 Task {
                     let success = await recipeVM.deleteRecipe(slug: slug)
-                    if success { dismiss() }
+                    if success {
+                        if let onDelete = onDelete {
+                            onDelete()
+                        } else {
+                            dismiss()
+                        }
+                    }
                 }
             }
         } message: {

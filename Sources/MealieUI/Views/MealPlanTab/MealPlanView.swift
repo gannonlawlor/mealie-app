@@ -43,6 +43,14 @@ struct MealPlanView: View {
         .task {
             await mealPlanVM.loadWeek()
         }
+        .sheet(isPresented: $showAddSheet) {
+            AddMealPlanView(
+                mealPlanVM: mealPlanVM,
+                recipeVM: recipeVM,
+                date: selectedDate,
+                isPresented: $showAddSheet
+            )
+        }
     }
 
     var weekHeader: some View {
@@ -127,14 +135,6 @@ struct MealPlanView: View {
             }
 
             Divider()
-        }
-        .sheet(isPresented: $showAddSheet) {
-            AddMealPlanView(
-                mealPlanVM: mealPlanVM,
-                recipeVM: recipeVM,
-                date: selectedDate,
-                isPresented: $showAddSheet
-            )
         }
     }
 
