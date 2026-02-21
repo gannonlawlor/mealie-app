@@ -37,6 +37,7 @@ struct MealPlanView: View {
             }
         }
         .navigationTitle("Meal Plan")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Today") {
