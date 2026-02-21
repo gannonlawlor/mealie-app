@@ -144,6 +144,9 @@ public class MealieAPI: @unchecked Sendable {
             let decoder = JSONDecoder()
             return try decoder.decode(T.self, from: data)
         } catch {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            logInfo("Decoding error for \(T.self): \(error)")
+            logInfo("Response body: \(body.prefix(500))")
             throw APIError.decodingError(error)
         }
     }

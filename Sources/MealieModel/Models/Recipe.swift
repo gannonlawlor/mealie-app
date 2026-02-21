@@ -35,22 +35,6 @@ public struct Recipe: Codable, Sendable, Identifiable, Hashable {
         self.updatedAt = updatedAt; self.orgURL = orgURL; self.extras = extras
     }
 
-    enum CodingKeys: String, CodingKey {
-        case id, slug, name, description, image, tags, tools, rating, nutrition, settings, extras
-        case recipeCategory = "recipe_category"
-        case recipeYield = "recipe_yield"
-        case recipeIngredient = "recipe_ingredient"
-        case recipeInstructions = "recipe_instructions"
-        case totalTime = "total_time"
-        case prepTime = "prep_time"
-        case performTime = "perform_time"
-        case dateAdded = "date_added"
-        case dateUpdated = "date_updated"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-        case orgURL = "org_url"
-    }
-
     public static func == (lhs: Recipe, rhs: Recipe) -> Bool {
         lhs.id == rhs.id
     }
@@ -71,13 +55,6 @@ public struct RecipeSummary: Codable, Sendable, Identifiable, Hashable {
     public let rating: Int?
     public let dateAdded: String?
     public let dateUpdated: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, slug, name, description, image, tags, rating
-        case recipeCategory = "recipe_category"
-        case dateAdded = "date_added"
-        case dateUpdated = "date_updated"
-    }
 
     public static func == (lhs: RecipeSummary, rhs: RecipeSummary) -> Bool {
         lhs.id == rhs.id
@@ -105,11 +82,6 @@ public struct RecipeTool: Codable, Sendable, Identifiable, Hashable {
     public let name: String?
     public let slug: String?
     public let onHand: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, slug
-        case onHand = "on_hand"
-    }
 }
 
 public struct RecipeIngredient: Codable, Sendable, Identifiable, Hashable {
@@ -129,14 +101,6 @@ public struct RecipeIngredient: Codable, Sendable, Identifiable, Hashable {
         self.id = id; self.quantity = quantity; self.unit = unit; self.food = food; self.note = note
         self.isFood = isFood; self.disableAmount = disableAmount; self.display = display
         self.title = title; self.originalText = originalText; self.referenceId = referenceId
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, quantity, unit, food, note, display, title
-        case isFood = "is_food"
-        case disableAmount = "disable_amount"
-        case originalText = "original_text"
-        case referenceId = "reference_id"
     }
 
     public var displayText: String {
@@ -164,11 +128,6 @@ public struct IngredientFood: Codable, Sendable, Identifiable, Hashable {
     public let name: String?
     public let description: String?
     public let labelId: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, description
-        case labelId = "label_id"
-    }
 }
 
 public struct RecipeInstruction: Codable, Sendable, Identifiable, Hashable {
@@ -180,11 +139,6 @@ public struct RecipeInstruction: Codable, Sendable, Identifiable, Hashable {
     public init(id: String?, title: String?, text: String?, ingredientReferences: [String]?) {
         self.id = id; self.title = title; self.text = text; self.ingredientReferences = ingredientReferences
     }
-
-    enum CodingKeys: String, CodingKey {
-        case id, title, text
-        case ingredientReferences = "ingredient_references"
-    }
 }
 
 public struct Nutrition: Codable, Sendable, Hashable {
@@ -195,16 +149,6 @@ public struct Nutrition: Codable, Sendable, Hashable {
     public let fiberContent: String?
     public let sodiumContent: String?
     public let sugarContent: String?
-
-    enum CodingKeys: String, CodingKey {
-        case calories
-        case fatContent = "fat_content"
-        case proteinContent = "protein_content"
-        case carbohydrateContent = "carbohydrate_content"
-        case fiberContent = "fiber_content"
-        case sodiumContent = "sodium_content"
-        case sugarContent = "sugar_content"
-    }
 }
 
 public struct RecipeSettings: Codable, Sendable, Hashable {
@@ -217,11 +161,7 @@ public struct RecipeSettings: Codable, Sendable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case isPublic = "public"
-        case showNutrition = "show_nutrition"
-        case showAssets = "show_assets"
-        case landscapeView = "landscape_view"
-        case disableComments = "disable_comments"
-        case disableAmount = "disable_amount"
+        case showNutrition, showAssets, landscapeView, disableComments, disableAmount
     }
 }
 
@@ -240,10 +180,5 @@ public struct CreateRecipeFromURL: Codable, Sendable {
     public init(url: String, includeTags: Bool = true) {
         self.url = url
         self.includeTags = includeTags
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case url
-        case includeTags = "include_tags"
     }
 }

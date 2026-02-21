@@ -9,15 +9,6 @@ public struct ShoppingList: Codable, Sendable, Identifiable, Hashable {
     public let createdAt: String?
     public let updatedAt: String?
 
-    enum CodingKeys: String, CodingKey {
-        case id, name
-        case groupId = "group_id"
-        case householdId = "household_id"
-        case listItems = "list_items"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-
     public static func == (lhs: ShoppingList, rhs: ShoppingList) -> Bool {
         lhs.id == rhs.id
     }
@@ -47,13 +38,6 @@ public struct ShoppingListItem: Codable, Sendable, Identifiable, Hashable {
     public let food: IngredientFood?
     public let labelId: String?
     public let extras: [String: String]?
-
-    enum CodingKeys: String, CodingKey {
-        case id, checked, position, note, quantity, unit, food, extras
-        case shoppingListId = "shopping_list_id"
-        case isFood = "is_food"
-        case labelId = "label_id"
-    }
 
     public static func == (lhs: ShoppingListItem, rhs: ShoppingListItem) -> Bool {
         lhs.id == rhs.id
@@ -94,10 +78,5 @@ public struct CreateShoppingListItem: Codable, Sendable {
         self.note = note
         self.quantity = quantity
         self.checked = checked
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case note, quantity, checked
-        case shoppingListId = "shopping_list_id"
     }
 }

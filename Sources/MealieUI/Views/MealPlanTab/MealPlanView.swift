@@ -166,7 +166,7 @@ struct MealPlanView: View {
 
             Button(role: .destructive) {
                 if let id = entry.id {
-                    Task { await mealPlanVM.deleteMealPlan(id: id) }
+                    Task { await mealPlanVM.deleteMealPlan(id: String(id)) }
                 }
             } label: {
                 Image(systemName: "xmark.circle")

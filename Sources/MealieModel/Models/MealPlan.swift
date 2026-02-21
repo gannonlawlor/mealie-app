@@ -1,7 +1,7 @@
 import Foundation
 
 public struct MealPlanEntry: Codable, Sendable, Identifiable, Hashable {
-    public let id: String?
+    public let id: Int?
     public let date: String?
     public let entryType: String?
     public let title: String?
@@ -10,14 +10,6 @@ public struct MealPlanEntry: Codable, Sendable, Identifiable, Hashable {
     public let recipe: RecipeSummary?
     public let groupId: String?
     public let householdId: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, date, title, text, recipe
-        case entryType = "entry_type"
-        case recipeId = "recipe_id"
-        case groupId = "group_id"
-        case householdId = "household_id"
-    }
 
     public static func == (lhs: MealPlanEntry, rhs: MealPlanEntry) -> Bool {
         lhs.id == rhs.id
@@ -76,11 +68,5 @@ public struct CreateMealPlan: Codable, Sendable {
         self.title = title
         self.text = text
         self.recipeId = recipeId
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case date, title, text
-        case entryType = "entry_type"
-        case recipeId = "recipe_id"
     }
 }

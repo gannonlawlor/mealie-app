@@ -11,14 +11,9 @@ public struct AuthToken: Codable, Sendable {
 }
 
 public struct APIToken: Codable, Sendable, Identifiable {
-    public let id: String
+    public let id: Int
     public let name: String
     public let createdAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, name
-        case createdAt = "created_at"
-    }
 }
 
 public struct AppInfo: Codable, Sendable {
@@ -26,11 +21,4 @@ public struct AppInfo: Codable, Sendable {
     public let demoStatus: Bool?
     public let allowSignup: Bool?
     public let enableOidc: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case version
-        case demoStatus = "demo_status"
-        case allowSignup = "allow_signup"
-        case enableOidc = "enable_oidc"
-    }
 }

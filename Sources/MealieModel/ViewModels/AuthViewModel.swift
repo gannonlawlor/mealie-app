@@ -65,12 +65,17 @@ import SkipFuse
                 errorMessage = "Invalid email or password."
             case .serverError(_, let msg):
                 errorMessage = "Server error: \(msg)"
+            case .decodingError(let inner):
+                errorMessage = "Login failed. Please try again."
+                print("Login decoding error: \(inner)")
             default:
                 errorMessage = "Login failed. Please try again."
+                print("Login API error: \(error)")
             }
             isLoading = false
         } catch {
             errorMessage = "Connection failed. Check your network."
+            print("Login error: \(error)")
             isLoading = false
         }
     }

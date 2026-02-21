@@ -13,6 +13,9 @@
     "%lld items remaining" : {
 
     },
+    "%lld." : {
+
+    },
     "1.0.0" : {
 
     },
@@ -22,10 +25,19 @@
     "Add an item..." : {
 
     },
+    "Add Ingredient" : {
+
+    },
     "Add Meal - %@" : {
 
     },
+    "Add Step" : {
+
+    },
     "App Version" : {
+
+    },
+    "Appearance" : {
 
     },
     "Are you sure you want to delete this recipe? This cannot be undone." : {
@@ -55,13 +67,28 @@
     "Connected - v%@" : {
 
     },
+    "Cook Time" : {
+
+    },
     "Create" : {
+
+    },
+    "Dark" : {
 
     },
     "Delete" : {
 
     },
     "Delete Recipe" : {
+
+    },
+    "Description" : {
+
+    },
+    "Details" : {
+
+    },
+    "Edit Recipe" : {
 
     },
     "Email" : {
@@ -79,10 +106,16 @@
     "Import Recipe" : {
 
     },
+    "Ingredient" : {
+
+    },
     "Ingredients" : {
 
     },
     "Instructions" : {
+
+    },
+    "Light" : {
 
     },
     "List name" : {
@@ -98,6 +131,9 @@
 
     },
     "Mealie" : {
+
+    },
+    "Name" : {
 
     },
     "New Shopping List" : {
@@ -124,6 +160,9 @@
     "Paste a URL from a recipe website and Mealie will automatically import it." : {
 
     },
+    "Prep Time" : {
+
+    },
     "Profile" : {
 
     },
@@ -139,7 +178,16 @@
     "Refresh Profile" : {
 
     },
+    "Save" : {
+
+    },
     "Search recipes..." : {
+
+    },
+    "Select a recipe" : {
+
+    },
+    "Select a shopping list" : {
 
     },
     "Server" : {
@@ -166,10 +214,25 @@
     "Skip + SwiftUI" : {
 
     },
+    "Step" : {
+
+    },
+    "System" : {
+
+    },
+    "Theme" : {
+
+    },
+    "Times" : {
+
+    },
     "To Buy" : {
 
     },
     "Today" : {
+
+    },
+    "Total Time" : {
 
     },
     "URL" : {
@@ -179,6 +242,9 @@
 
     },
     "Version" : {
+
+    },
+    "Yield (e.g. 4 servings)" : {
 
     },
     "Your Recipe Manager" : {

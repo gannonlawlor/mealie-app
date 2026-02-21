@@ -75,12 +75,13 @@ These SwiftUI APIs are **not available** in SkipFuseUI (Android). Avoid them or 
 
 ## Mealie API (v2)
 
-- **Auth**: `POST /api/auth/token` (form-encoded) returns JWT Bearer token
+- **Auth**: `POST /api/auth/token` (form-encoded) returns JWT Bearer token — uses snake_case (`access_token`, `token_type`)
+- **All other endpoints** use **camelCase** JSON keys (e.g. `recipeIngredient`, `entryType`, `shoppingListId`) — do NOT use snake_case CodingKeys for these
+- **Pagination** is the exception: uses `per_page` and `total_pages` (snake_case)
 - **Recipes**: `GET /api/recipes` (paginated), `GET /api/recipes/{slug}` (detail)
-- **Meal Plans**: `GET/POST /api/households/mealplans`
+- **Meal Plans**: `GET/POST /api/households/mealplans` — entry `id` is `Int`, not `String`
 - **Shopping Lists**: `GET /api/households/shopping/lists`, `/items`
 - **Images**: `GET /api/media/recipes/{id}/images/min-original.webp`
-- Pagination params: `page`, `perPage`; response fields: `items`, `total_pages`
 
 ## iPad Layout
 
@@ -89,3 +90,7 @@ The app uses an adaptive layout based on `horizontalSizeClass`:
 - **Regular** (iPad): Custom sidebar (240pt) + content area with two-column split views for Recipes and Shopping tabs
 
 On iPad, recipe and shopping list selection uses `Button` (not `NavigationLink`) to set selection state in the split view. `RecipeDetailView` accepts an optional `onDelete` closure so the split view can clear selection after deletion.
+
+## Error Handling
+
+All network errors must be logged with details. In `catch` blocks for API calls, always `print()` the underlying error so it appears in the console. Never silently swallow errors — at minimum log them even if the UI shows a generic message.
