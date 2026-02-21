@@ -93,7 +93,7 @@ public struct ContentView: View {
             Divider()
 
             // Content area
-            Group {
+            VStack(spacing: 0) {
                 switch selectedTab {
                 case .recipes:
                     RecipeSplitView(recipeVM: recipeVM)
@@ -109,8 +109,8 @@ public struct ContentView: View {
                     }
                 }
             }
-            .padding(.leading, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.leading, 16)
         }
     }
 }
