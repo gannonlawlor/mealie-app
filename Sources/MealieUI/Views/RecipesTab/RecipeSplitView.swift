@@ -33,6 +33,7 @@ struct RecipeSplitView: View {
                         ImportRecipeView(recipeVM: recipeVM, isPresented: $showImportSheet)
                     }
             }
+            .safeAreaPadding(.leading, 8)
             .frame(width: 340)
 
             Divider()
