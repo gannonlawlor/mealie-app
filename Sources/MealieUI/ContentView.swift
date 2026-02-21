@@ -109,6 +109,7 @@ public struct ContentView: View {
                     }
                 }
             }
+            .padding(.leading, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

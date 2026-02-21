@@ -45,6 +45,7 @@ struct RecipeSplitView: View {
                         slug: slug,
                         onDelete: { selectedSlug = nil }
                     )
+                    .id(slug)
                 } else {
                     VStack(spacing: 12) {
                         Image(systemName: "book")

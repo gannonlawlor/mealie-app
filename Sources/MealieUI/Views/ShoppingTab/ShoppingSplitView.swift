@@ -47,6 +47,7 @@ struct ShoppingSplitView: View {
             NavigationStack {
                 if let listId = selectedListId {
                     ShoppingListDetailView(shoppingVM: shoppingVM, listId: listId)
+                        .id(listId)
                 } else {
                     VStack(spacing: 12) {
                         Image(systemName: "cart")
