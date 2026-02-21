@@ -40,30 +40,42 @@ import SkipFuse
     }
 
     public func loadWeek() async {
-        isLoading = true
-        errorMessage = ""
-
         let startDate = MealPlanViewModel.dateString(currentWeekStart)
         let endDate = MealPlanViewModel.dateString(Calendar.current.date(byAdding: .day, value: 6, to: currentWeekStart) ?? currentWeekStart)
 
+        // Show cached data immediately
+        if weekEntries.isEmpty, let cached = CacheService.shared.loadMealPlanWeek(startDate: startDate) {
+            weekEntries = groupEntries(cached)
+        }
+
+        isLoading = weekEntries.isEmpty
+        errorMessage = ""
+
         do {
             let response = try await MealieAPI.shared.getMealPlans(startDate: startDate, endDate: endDate)
-            var grouped: [String: [MealPlanEntry]] = [:]
-            for entry in response.items {
-                let date = entry.date ?? ""
-                if grouped[date] != nil {
-                    grouped[date]!.append(entry)
-                } else {
-                    grouped[date] = [entry]
-                }
-            }
-            weekEntries = grouped
+            weekEntries = groupEntries(response.items)
+            CacheService.shared.saveMealPlanWeek(response.items, startDate: startDate)
             isLoading = false
         } catch {
-            errorMessage = "Failed to load meal plan."
+            if weekEntries.isEmpty {
+                errorMessage = "Failed to load meal plan."
+            }
             print("Failed to load meal plans: \(error)")
             isLoading = false
         }
+    }
+
+    private func groupEntries(_ entries: [MealPlanEntry]) -> [String: [MealPlanEntry]] {
+        var grouped: [String: [MealPlanEntry]] = [:]
+        for entry in entries {
+            let date = entry.date ?? ""
+            if grouped[date] != nil {
+                grouped[date]!.append(entry)
+            } else {
+                grouped[date] = [entry]
+            }
+        }
+        return grouped
     }
 
     public func loadToday() async {

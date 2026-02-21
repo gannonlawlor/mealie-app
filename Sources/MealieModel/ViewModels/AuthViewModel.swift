@@ -85,6 +85,7 @@ import SkipFuse
 
     public func logout() {
         AuthService.shared.clearSession()
+        CacheService.shared.clearAll()
         isAuthenticated = false
         showServerSetup = true
         currentUser = nil

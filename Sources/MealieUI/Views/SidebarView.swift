@@ -11,6 +11,7 @@ struct SidebarView: View {
     @Binding var selectedTab: AppTab
     @Bindable var authVM: AuthViewModel
     @State var showLogoutAlert = false
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -68,7 +69,7 @@ struct SidebarView: View {
             }
         }
         .frame(width: 240)
-        .background(Color(white: 0.95))
+        .background(AdaptiveColors.color(.sidebar, isDark: colorScheme == .dark))
     }
 
     func sidebarButton(tab: AppTab, icon: String, label: String) -> some View {

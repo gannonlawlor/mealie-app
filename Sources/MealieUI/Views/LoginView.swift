@@ -9,6 +9,7 @@ import MealieModel
 
 struct LoginView: View {
     @Bindable var authVM: AuthViewModel
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -61,7 +62,7 @@ struct LoginView: View {
             TextField("Server URL (e.g. mealie.example.com)", text: $authVM.serverURL)
                 .autocorrectionDisabled()
                 .padding()
-                .background(Color(white: 0.9))
+                .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                 .cornerRadius(10)
 
             Button(action: {
@@ -110,12 +111,12 @@ struct LoginView: View {
             TextField("Email", text: $authVM.email)
                 .autocorrectionDisabled()
                 .padding()
-                .background(Color(white: 0.9))
+                .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                 .cornerRadius(10)
 
             SecureField("Password", text: $authVM.password)
                 .padding()
-                .background(Color(white: 0.9))
+                .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                 .cornerRadius(10)
 
             Button(action: {

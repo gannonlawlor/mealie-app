@@ -26,7 +26,14 @@ import SkipFuse
     public func loadRecipes(reset: Bool = false) async {
         if reset {
             currentPage = 1
-            recipes = []
+            // Show cached data immediately on first load
+            if recipes.isEmpty, searchText.isEmpty, selectedCategory == nil, selectedTag == nil {
+                if let cached = CacheService.shared.loadRecipeList() {
+                    recipes = cached
+                }
+            } else {
+                recipes = []
+            }
         }
 
         isLoading = true
@@ -42,6 +49,10 @@ import SkipFuse
             )
             if reset {
                 recipes = response.items
+                // Cache unfiltered first page
+                if searchText.isEmpty && selectedCategory == nil && selectedTag == nil {
+                    CacheService.shared.saveRecipeList(response.items)
+                }
             } else {
                 recipes.append(contentsOf: response.items)
             }
@@ -61,30 +72,47 @@ import SkipFuse
     }
 
     public func loadRecipeDetail(slug: String) async {
-        isLoadingDetail = true
+        // Show cached detail immediately
+        if let cached = CacheService.shared.loadRecipeDetail(slug: slug) {
+            selectedRecipe = cached
+        }
+
+        isLoadingDetail = selectedRecipe == nil
         do {
-            selectedRecipe = try await MealieAPI.shared.getRecipe(slug: slug)
+            let recipe = try await MealieAPI.shared.getRecipe(slug: slug)
+            selectedRecipe = recipe
+            CacheService.shared.saveRecipeDetail(recipe, slug: slug)
             isLoadingDetail = false
         } catch {
-            errorMessage = "Failed to load recipe."
+            if selectedRecipe == nil {
+                errorMessage = "Failed to load recipe."
+            }
             print("Failed to load recipe detail: \(error)")
             isLoadingDetail = false
         }
     }
 
     public func loadCategories() async {
+        if categories.isEmpty, let cached = CacheService.shared.loadCategories() {
+            categories = cached
+        }
         do {
             let response = try await MealieAPI.shared.getCategories()
             categories = response.items
+            CacheService.shared.saveCategories(response.items)
         } catch {
             print("Failed to load categories: \(error)")
         }
     }
 
     public func loadTags() async {
+        if tags.isEmpty, let cached = CacheService.shared.loadTags() {
+            tags = cached
+        }
         do {
             let response = try await MealieAPI.shared.getTags()
             tags = response.items
+            CacheService.shared.saveTags(response.items)
         } catch {
             print("Failed to load tags: \(error)")
         }

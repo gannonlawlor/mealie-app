@@ -14,6 +14,7 @@ struct RecipeDetailView: View {
     @State var showDeleteAlert = false
     @State var showEditSheet = false
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         Group {
@@ -89,7 +90,8 @@ struct RecipeDetailView: View {
                             .aspectRatio(contentMode: .fill)
                     } placeholder: {
                         Rectangle()
-                            .fill(Color(white: 0.85))
+                            .fill(Color.clear)
+                            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
                             .overlay {
                                 Image(systemName: "photo")
                                     .font(.largeTitle)
@@ -158,7 +160,7 @@ struct RecipeDetailView: View {
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(Color(white: 0.9))
+                            .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
                             .cornerRadius(8)
                         }
                     }
@@ -289,7 +291,7 @@ struct RecipeDetailView: View {
                             }
                             .padding(8)
                             .frame(maxWidth: .infinity)
-                            .background(Color(white: 0.9))
+                            .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
                             .cornerRadius(8)
                         }
                     }

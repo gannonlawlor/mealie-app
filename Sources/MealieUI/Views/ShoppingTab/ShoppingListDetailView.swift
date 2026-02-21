@@ -10,6 +10,7 @@ import MealieModel
 struct ShoppingListDetailView: View {
     @Bindable var shoppingVM: ShoppingViewModel
     let listId: String
+    @Environment(\.colorScheme) var colorScheme
 
     var uncheckedItems: [ShoppingListItem] {
         shoppingVM.selectedList?.listItems?.filter { $0.checked != true } ?? []
@@ -32,7 +33,7 @@ struct ShoppingListDetailView: View {
             HStack(spacing: 8) {
                 TextField("Add an item...", text: $shoppingVM.newItemNote)
                     .padding(10)
-                    .background(Color(white: 0.9))
+                    .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                     .cornerRadius(8)
 
                 Button(action: {

@@ -13,29 +13,41 @@ public struct ContentView: View {
     @State var mealPlanVM = MealPlanViewModel()
     @State var shoppingVM = ShoppingViewModel()
     @State var selectedTab: AppTab = .recipes
+    @State var appTheme: AppTheme = AppSettings.shared.theme
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     public init() {
     }
 
-    public var body: some View {
-        if authVM.isAuthenticated {
-            if horizontalSizeClass == .regular {
-                iPadLayout
-                    .task {
-                        await authVM.loadCurrentUser()
-                        recipeVM.loadFavorites(user: authVM.currentUser)
-                    }
-            } else {
-                mainTabView
-                    .task {
-                        await authVM.loadCurrentUser()
-                        recipeVM.loadFavorites(user: authVM.currentUser)
-                    }
-            }
-        } else {
-            LoginView(authVM: authVM)
+    var resolvedColorScheme: ColorScheme? {
+        switch appTheme {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
         }
+    }
+
+    public var body: some View {
+        Group {
+            if authVM.isAuthenticated {
+                if horizontalSizeClass == .regular {
+                    iPadLayout
+                        .task {
+                            await authVM.loadCurrentUser()
+                            recipeVM.loadFavorites(user: authVM.currentUser)
+                        }
+                } else {
+                    mainTabView
+                        .task {
+                            await authVM.loadCurrentUser()
+                            recipeVM.loadFavorites(user: authVM.currentUser)
+                        }
+                }
+            } else {
+                LoginView(authVM: authVM)
+            }
+        }
+        .preferredColorScheme(resolvedColorScheme)
     }
 
     var mainTabView: some View {
@@ -65,7 +77,7 @@ public struct ContentView: View {
             }
 
             NavigationStack {
-                SettingsView(authVM: authVM)
+                SettingsView(authVM: authVM, onThemeChange: { appTheme = $0 })
             }
             .tag(AppTab.settings)
             .tabItem {
@@ -93,7 +105,7 @@ public struct ContentView: View {
                     ShoppingSplitView(shoppingVM: shoppingVM)
                 case .settings:
                     NavigationStack {
-                        SettingsView(authVM: authVM)
+                        SettingsView(authVM: authVM, onThemeChange: { appTheme = $0 })
                     }
                 }
             }

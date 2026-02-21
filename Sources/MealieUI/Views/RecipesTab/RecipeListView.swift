@@ -149,6 +149,7 @@ struct RecipeRowView: View {
 struct ImportRecipeView: View {
     @Bindable var recipeVM: RecipeViewModel
     @Binding var isPresented: Bool
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -165,7 +166,7 @@ struct ImportRecipeView: View {
                     .autocorrectionDisabled()
 
                     .padding()
-                    .background(Color(white: 0.9))
+                    .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                     .cornerRadius(10)
 
                 Button(action: {

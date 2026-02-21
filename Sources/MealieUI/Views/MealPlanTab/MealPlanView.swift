@@ -12,6 +12,7 @@ struct MealPlanView: View {
     @Bindable var recipeVM: RecipeViewModel
     @State var showAddSheet = false
     @State var selectedDate: Date = Date()
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -91,7 +92,7 @@ struct MealPlanView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(white: 0.9))
+        .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
     }
 
     var weekTitle: String {
@@ -175,7 +176,7 @@ struct MealPlanView: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
-        .background(Color(white: 0.9))
+        .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
         .cornerRadius(8)
     }
 }
@@ -189,6 +190,7 @@ struct AddMealPlanView: View {
     @State var searchText: String = ""
     @State var searchResults: [RecipeSummary] = []
     @State var isSearching: Bool = false
+    @Environment(\.colorScheme) var colorScheme
 
     var displayedRecipes: [RecipeSummary] {
         searchResults.isEmpty ? recipeVM.recipes : searchResults
@@ -209,7 +211,7 @@ struct AddMealPlanView: View {
                 // Recipe search
                 TextField("Search recipes...", text: $searchText)
                     .padding()
-                    .background(Color(white: 0.9))
+                    .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                     .cornerRadius(10)
                     .padding(.horizontal)
                     .onSubmit {

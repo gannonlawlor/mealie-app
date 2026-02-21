@@ -9,10 +9,26 @@ import MealieModel
 
 struct SettingsView: View {
     @Bindable var authVM: AuthViewModel
+    var onThemeChange: ((AppTheme) -> Void)? = nil
     @State var showLogoutAlert = false
+    @State var selectedTheme: AppTheme = AppSettings.shared.theme
 
     var body: some View {
         List {
+            // Appearance Section
+            Section("Appearance") {
+                Picker("Theme", selection: $selectedTheme) {
+                    Text("System").tag(AppTheme.system)
+                    Text("Light").tag(AppTheme.light)
+                    Text("Dark").tag(AppTheme.dark)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: selectedTheme) { _, newValue in
+                    AppSettings.shared.theme = newValue
+                    onThemeChange?(newValue)
+                }
+            }
+
             // User Profile Section
             if let user = authVM.currentUser {
                 Section("Profile") {

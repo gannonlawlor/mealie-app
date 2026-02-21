@@ -12,27 +12,42 @@ import SkipFuse
     public init() {}
 
     public func loadShoppingLists() async {
-        isLoading = true
+        if shoppingLists.isEmpty, let cached = CacheService.shared.loadShoppingLists() {
+            shoppingLists = cached
+        }
+
+        isLoading = shoppingLists.isEmpty
         errorMessage = ""
 
         do {
             let response = try await MealieAPI.shared.getShoppingLists()
             shoppingLists = response.items
+            CacheService.shared.saveShoppingLists(response.items)
             isLoading = false
         } catch {
-            errorMessage = "Failed to load shopping lists."
+            if shoppingLists.isEmpty {
+                errorMessage = "Failed to load shopping lists."
+            }
             print("Failed to load shopping lists: \(error)")
             isLoading = false
         }
     }
 
     public func loadShoppingList(id: String) async {
-        isLoading = true
+        if let cached = CacheService.shared.loadShoppingListDetail(id: id) {
+            selectedList = cached
+        }
+
+        isLoading = selectedList == nil
         do {
-            selectedList = try await MealieAPI.shared.getShoppingList(id: id)
+            let list = try await MealieAPI.shared.getShoppingList(id: id)
+            selectedList = list
+            CacheService.shared.saveShoppingListDetail(list, id: id)
             isLoading = false
         } catch {
-            errorMessage = "Failed to load shopping list."
+            if selectedList == nil {
+                errorMessage = "Failed to load shopping list."
+            }
             print("Failed to load shopping list: \(error)")
             isLoading = false
         }
