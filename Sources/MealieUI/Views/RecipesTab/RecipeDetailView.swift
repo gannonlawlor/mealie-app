@@ -202,7 +202,7 @@ struct RecipeDetailView: View {
                 .padding(.horizontal)
 
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(ingredients) { ingredient in
+                ForEach(Array(ingredients.enumerated()), id: \.offset) { _, ingredient in
                     if let title = ingredient.title, !title.isEmpty {
                         Text(title)
                             .font(.subheadline)

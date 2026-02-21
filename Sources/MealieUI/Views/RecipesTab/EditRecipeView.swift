@@ -109,7 +109,7 @@ struct EditRecipeView: View {
 
         let ingredients = ingredientTexts.filter { !$0.isEmpty }.map { text in
             RecipeIngredient(
-                id: nil, quantity: nil, unit: nil, food: nil,
+                quantity: nil, unit: nil, food: nil,
                 note: text, isFood: false, disableAmount: true,
                 display: text, title: nil, originalText: text, referenceId: nil
             )

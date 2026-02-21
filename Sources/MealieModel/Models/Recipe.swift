@@ -84,8 +84,7 @@ public struct RecipeTool: Codable, Sendable, Identifiable, Hashable {
     public let onHand: Bool?
 }
 
-public struct RecipeIngredient: Codable, Sendable, Identifiable, Hashable {
-    public let id: String?
+public struct RecipeIngredient: Codable, Sendable, Hashable {
     public let quantity: Double?
     public let unit: IngredientUnit?
     public let food: IngredientFood?
@@ -97,8 +96,8 @@ public struct RecipeIngredient: Codable, Sendable, Identifiable, Hashable {
     public let originalText: String?
     public let referenceId: String?
 
-    public init(id: String?, quantity: Double?, unit: IngredientUnit?, food: IngredientFood?, note: String?, isFood: Bool?, disableAmount: Bool?, display: String?, title: String?, originalText: String?, referenceId: String?) {
-        self.id = id; self.quantity = quantity; self.unit = unit; self.food = food; self.note = note
+    public init(quantity: Double?, unit: IngredientUnit?, food: IngredientFood?, note: String?, isFood: Bool?, disableAmount: Bool?, display: String?, title: String?, originalText: String?, referenceId: String?) {
+        self.quantity = quantity; self.unit = unit; self.food = food; self.note = note
         self.isFood = isFood; self.disableAmount = disableAmount; self.display = display
         self.title = title; self.originalText = originalText; self.referenceId = referenceId
     }
