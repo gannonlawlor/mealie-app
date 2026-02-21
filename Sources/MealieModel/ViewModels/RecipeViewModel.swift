@@ -66,6 +66,7 @@ import SkipFuse
             selectedRecipe = try await MealieAPI.shared.getRecipe(slug: slug)
             isLoadingDetail = false
         } catch {
+            errorMessage = "Failed to load recipe."
             print("Failed to load recipe detail: \(error)")
             isLoadingDetail = false
         }
@@ -95,6 +96,7 @@ import SkipFuse
             recipes.removeAll { $0.slug == slug }
             return true
         } catch {
+            errorMessage = "Failed to delete recipe."
             print("Failed to delete recipe: \(error)")
             return false
         }
@@ -121,5 +123,59 @@ import SkipFuse
 
     public func search() async {
         await loadRecipes(reset: true)
+    }
+
+    // MARK: - Favorites
+
+    public var favoriteRecipes: Set<String> = []
+
+    public func loadFavorites(user: User?) {
+        guard let slugs = user?.favoriteRecipes else { return }
+        favoriteRecipes = Set(slugs)
+    }
+
+    public func isFavorite(slug: String) -> Bool {
+        favoriteRecipes.contains(slug)
+    }
+
+    public func toggleFavorite(slug: String, userId: String) async {
+        let wasFavorite = favoriteRecipes.contains(slug)
+        // Optimistic update
+        if wasFavorite {
+            favoriteRecipes.remove(slug)
+        } else {
+            favoriteRecipes.insert(slug)
+        }
+
+        do {
+            if wasFavorite {
+                try await MealieAPI.shared.removeFavorite(userId: userId, slug: slug)
+            } else {
+                try await MealieAPI.shared.addFavorite(userId: userId, slug: slug)
+            }
+        } catch {
+            // Revert on failure
+            if wasFavorite {
+                favoriteRecipes.insert(slug)
+            } else {
+                favoriteRecipes.remove(slug)
+            }
+            errorMessage = "Failed to update favorite."
+            print("Failed to toggle favorite: \(error)")
+        }
+    }
+
+    // MARK: - Update Recipe
+
+    public func updateRecipe(slug: String, data: Recipe) async -> Bool {
+        do {
+            selectedRecipe = try await MealieAPI.shared.updateRecipe(slug: slug, data: data)
+            await loadRecipes(reset: true)
+            return true
+        } catch {
+            errorMessage = "Failed to update recipe."
+            print("Failed to update recipe: \(error)")
+            return false
+        }
     }
 }

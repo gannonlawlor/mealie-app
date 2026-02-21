@@ -24,11 +24,13 @@ public struct ContentView: View {
                 iPadLayout
                     .task {
                         await authVM.loadCurrentUser()
+                        recipeVM.loadFavorites(user: authVM.currentUser)
                     }
             } else {
                 mainTabView
                     .task {
                         await authVM.loadCurrentUser()
+                        recipeVM.loadFavorites(user: authVM.currentUser)
                     }
             }
         } else {

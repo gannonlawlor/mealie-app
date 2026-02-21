@@ -70,6 +70,7 @@ import SkipFuse
         do {
             todayEntries = try await MealieAPI.shared.getTodayMealPlan()
         } catch {
+            errorMessage = "Failed to load today's meal plan."
             print("Failed to load today's meal plan: \(error)")
         }
     }
@@ -98,6 +99,7 @@ import SkipFuse
             let _ = try await MealieAPI.shared.createMealPlan(plan)
             await loadWeek()
         } catch {
+            errorMessage = "Failed to add meal plan."
             print("Failed to create meal plan: \(error)")
         }
     }
@@ -107,6 +109,7 @@ import SkipFuse
             try await MealieAPI.shared.deleteMealPlan(id: id)
             await loadWeek()
         } catch {
+            errorMessage = "Failed to delete meal plan."
             print("Failed to delete meal plan: \(error)")
         }
     }

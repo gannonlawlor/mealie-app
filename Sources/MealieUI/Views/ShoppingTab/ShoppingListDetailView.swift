@@ -21,6 +21,13 @@ struct ShoppingListDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !shoppingVM.errorMessage.isEmpty {
+                ErrorBanner(message: shoppingVM.errorMessage) {
+                    shoppingVM.errorMessage = ""
+                }
+                .padding(.top, 4)
+            }
+
             // Add item bar
             HStack(spacing: 8) {
                 TextField("Add an item...", text: $shoppingVM.newItemNote)
@@ -81,27 +88,37 @@ struct ShoppingListDetailView: View {
     }
 
     func shoppingItemRow(_ item: ShoppingListItem) -> some View {
-        Button(action: {
-            Task { await shoppingVM.toggleItem(item) }
-        }) {
-            HStack(spacing: 12) {
-                Image(systemName: item.checked == true ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(item.checked == true ? .green : .secondary)
-                    .font(.title3)
+        HStack(spacing: 12) {
+            Button(action: {
+                Task { await shoppingVM.toggleItem(item) }
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: item.checked == true ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(item.checked == true ? .green : .secondary)
+                        .font(.title3)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.displayText)
-                        .strikethrough(item.checked == true)
-                        .foregroundStyle(item.checked == true ? .secondary : .primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.displayText)
+                            .strikethrough(item.checked == true)
+                            .foregroundStyle(item.checked == true ? .secondary : .primary)
 
-                    if let note = item.note, !note.isEmpty, item.food != nil {
-                        Text(note)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if let note = item.note, !note.isEmpty, item.food != nil {
+                            Text(note)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
 
-                Spacer()
+                    Spacer()
+                }
+            }
+
+            Button(action: {
+                Task { await shoppingVM.deleteItem(item) }
+            }) {
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
     }

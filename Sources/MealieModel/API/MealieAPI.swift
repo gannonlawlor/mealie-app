@@ -74,6 +74,41 @@ public class MealieAPI: @unchecked Sendable {
         return request
     }
 
+    private var isRefreshing = false
+
+    private func attemptTokenRefresh() async -> Bool {
+        guard !isRefreshing else { return false }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        do {
+            let token: AuthToken = try await {
+                let request = try buildRequest(method: "GET", path: "/api/auth/refresh")
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...299).contains(httpResponse.statusCode) else {
+                    throw APIError.unauthorized
+                }
+                return try JSONDecoder().decode(AuthToken.self, from: data)
+            }()
+            accessToken = token.accessToken
+            AuthService.shared.savedToken = token.accessToken
+            logInfo("Token refreshed successfully")
+            return true
+        } catch {
+            logInfo("Token refresh failed: \(error)")
+            return false
+        }
+    }
+
+    private func rebuildRequest(_ original: URLRequest) -> URLRequest {
+        var request = original
+        if !accessToken.isEmpty {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
     func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
         logInfo("\(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "")")
 
@@ -86,6 +121,17 @@ public class MealieAPI: @unchecked Sendable {
         logInfo("Response: \(httpResponse.statusCode)")
 
         if httpResponse.statusCode == 401 {
+            if await attemptTokenRefresh() {
+                let retryRequest = rebuildRequest(request)
+                let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                guard let retryHttp = retryResponse as? HTTPURLResponse else { throw APIError.noData }
+                if retryHttp.statusCode == 401 { throw APIError.unauthorized }
+                guard (200...299).contains(retryHttp.statusCode) else {
+                    throw APIError.serverError(retryHttp.statusCode, String(data: retryData, encoding: .utf8) ?? "")
+                }
+                do { return try JSONDecoder().decode(T.self, from: retryData) }
+                catch { throw APIError.decodingError(error) }
+            }
             throw APIError.unauthorized
         }
 
@@ -110,6 +156,16 @@ public class MealieAPI: @unchecked Sendable {
         }
 
         if httpResponse.statusCode == 401 {
+            if await attemptTokenRefresh() {
+                let retryRequest = rebuildRequest(request)
+                let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                guard let retryHttp = retryResponse as? HTTPURLResponse else { throw APIError.noData }
+                if retryHttp.statusCode == 401 { throw APIError.unauthorized }
+                guard (200...299).contains(retryHttp.statusCode) else {
+                    throw APIError.serverError(retryHttp.statusCode, String(data: retryData, encoding: .utf8) ?? "")
+                }
+                return (retryData, retryHttp)
+            }
             throw APIError.unauthorized
         }
 

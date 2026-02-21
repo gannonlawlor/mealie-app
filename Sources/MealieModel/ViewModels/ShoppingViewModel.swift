@@ -32,6 +32,7 @@ import SkipFuse
             selectedList = try await MealieAPI.shared.getShoppingList(id: id)
             isLoading = false
         } catch {
+            errorMessage = "Failed to load shopping list."
             print("Failed to load shopping list: \(error)")
             isLoading = false
         }
@@ -42,6 +43,7 @@ import SkipFuse
             let newList = try await MealieAPI.shared.createShoppingList(name: name)
             shoppingLists.append(newList)
         } catch {
+            errorMessage = "Failed to create shopping list."
             print("Failed to create shopping list: \(error)")
         }
     }
@@ -51,6 +53,7 @@ import SkipFuse
             try await MealieAPI.shared.deleteShoppingList(id: id)
             shoppingLists.removeAll { $0.id == id }
         } catch {
+            errorMessage = "Failed to delete shopping list."
             print("Failed to delete shopping list: \(error)")
         }
     }
@@ -68,7 +71,21 @@ import SkipFuse
             newItemNote = ""
             await loadShoppingList(id: listId)
         } catch {
+            errorMessage = "Failed to add item."
             print("Failed to add item: \(error)")
+        }
+    }
+
+    public func deleteItem(_ item: ShoppingListItem) async {
+        guard let itemId = item.id else { return }
+        do {
+            try await MealieAPI.shared.deleteShoppingListItem(id: itemId)
+            if let listId = item.shoppingListId {
+                await loadShoppingList(id: listId)
+            }
+        } catch {
+            errorMessage = "Failed to delete item."
+            print("Failed to delete item: \(error)")
         }
     }
 
@@ -82,6 +99,7 @@ import SkipFuse
                 await loadShoppingList(id: listId)
             }
         } catch {
+            errorMessage = "Failed to update item."
             print("Failed to toggle item: \(error)")
         }
     }
@@ -91,6 +109,7 @@ import SkipFuse
             try await MealieAPI.shared.addRecipeToShoppingList(listId: listId, recipeId: recipeId)
             await loadShoppingList(id: listId)
         } catch {
+            errorMessage = "Failed to add recipe ingredients."
             print("Failed to add recipe ingredients: \(error)")
         }
     }

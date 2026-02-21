@@ -14,6 +14,7 @@ public struct User: Codable, Sendable, Identifiable {
     public let canInvite: Bool?
     public let canManage: Bool?
     public let canOrganize: Bool?
+    public let favoriteRecipes: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id, username, email, admin, group, household, tokens
@@ -23,6 +24,7 @@ public struct User: Codable, Sendable, Identifiable {
         case canInvite = "can_invite"
         case canManage = "can_manage"
         case canOrganize = "can_organize"
+        case favoriteRecipes = "favorite_recipes"
     }
 }
 

@@ -12,6 +12,7 @@ struct RecipeDetailView: View {
     let slug: String
     var onDelete: (() -> Void)? = nil
     @State var showDeleteAlert = false
+    @State var showEditSheet = false
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -28,13 +29,31 @@ struct RecipeDetailView: View {
         .navigationTitle(recipeVM.selectedRecipe?.name ?? "Recipe")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button(role: .destructive, action: { showDeleteAlert = true }) {
-                        Label("Delete Recipe", systemImage: "trash")
+                HStack(spacing: 12) {
+                    Button(action: {
+                        guard let userId = AuthService.shared.savedUserId else { return }
+                        Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
+                    }) {
+                        Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.fill" : "heart")
+                            .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .secondary)
                     }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+
+                    Menu {
+                        Button(action: { showEditSheet = true }) {
+                            Label("Edit Recipe", systemImage: "pencil")
+                        }
+                        Button(role: .destructive, action: { showDeleteAlert = true }) {
+                            Label("Delete Recipe", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            if let recipe = recipeVM.selectedRecipe {
+                EditRecipeView(recipeVM: recipeVM, recipe: recipe, isPresented: $showEditSheet)
             }
         }
         .alert("Delete Recipe", isPresented: $showDeleteAlert) {

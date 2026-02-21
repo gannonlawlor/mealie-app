@@ -15,6 +15,13 @@ struct MealPlanView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !mealPlanVM.errorMessage.isEmpty {
+                ErrorBanner(message: mealPlanVM.errorMessage) {
+                    mealPlanVM.errorMessage = ""
+                }
+                .padding(.top, 4)
+            }
+
             // Week navigation header
             weekHeader
 

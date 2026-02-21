@@ -25,6 +25,16 @@ public struct Recipe: Codable, Sendable, Identifiable, Hashable {
     public let orgURL: String?
     public let extras: [String: String]?
 
+    public init(id: String?, slug: String?, name: String?, description: String?, image: String?, recipeCategory: [RecipeCategory]?, tags: [RecipeTag]?, tools: [RecipeTool]?, rating: Int?, recipeYield: String?, recipeIngredient: [RecipeIngredient]?, recipeInstructions: [RecipeInstruction]?, totalTime: String?, prepTime: String?, performTime: String?, nutrition: Nutrition?, settings: RecipeSettings?, dateAdded: String?, dateUpdated: String?, createdAt: String?, updatedAt: String?, orgURL: String?, extras: [String: String]?) {
+        self.id = id; self.slug = slug; self.name = name; self.description = description; self.image = image
+        self.recipeCategory = recipeCategory; self.tags = tags; self.tools = tools; self.rating = rating
+        self.recipeYield = recipeYield; self.recipeIngredient = recipeIngredient
+        self.recipeInstructions = recipeInstructions; self.totalTime = totalTime; self.prepTime = prepTime
+        self.performTime = performTime; self.nutrition = nutrition; self.settings = settings
+        self.dateAdded = dateAdded; self.dateUpdated = dateUpdated; self.createdAt = createdAt
+        self.updatedAt = updatedAt; self.orgURL = orgURL; self.extras = extras
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, slug, name, description, image, tags, tools, rating, nutrition, settings, extras
         case recipeCategory = "recipe_category"
@@ -115,6 +125,12 @@ public struct RecipeIngredient: Codable, Sendable, Identifiable, Hashable {
     public let originalText: String?
     public let referenceId: String?
 
+    public init(id: String?, quantity: Double?, unit: IngredientUnit?, food: IngredientFood?, note: String?, isFood: Bool?, disableAmount: Bool?, display: String?, title: String?, originalText: String?, referenceId: String?) {
+        self.id = id; self.quantity = quantity; self.unit = unit; self.food = food; self.note = note
+        self.isFood = isFood; self.disableAmount = disableAmount; self.display = display
+        self.title = title; self.originalText = originalText; self.referenceId = referenceId
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, quantity, unit, food, note, display, title
         case isFood = "is_food"
@@ -160,6 +176,10 @@ public struct RecipeInstruction: Codable, Sendable, Identifiable, Hashable {
     public let title: String?
     public let text: String?
     public let ingredientReferences: [String]?
+
+    public init(id: String?, title: String?, text: String?, ingredientReferences: [String]?) {
+        self.id = id; self.title = title; self.text = text; self.ingredientReferences = ingredientReferences
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, title, text

@@ -12,6 +12,46 @@ struct RecipeListView: View {
     @State var showImportSheet = false
 
     var body: some View {
+        VStack(spacing: 0) {
+            if !recipeVM.errorMessage.isEmpty {
+                ErrorBanner(message: recipeVM.errorMessage) {
+                    recipeVM.errorMessage = ""
+                }
+                .padding(.top, 4)
+            }
+            recipeList
+        }
+        .navigationTitle("Recipes")
+        .navigationDestination(for: RecipeSummary.self) { recipe in
+            RecipeDetailView(recipeVM: recipeVM, slug: recipe.slug ?? "")
+        }
+        .searchable(text: $recipeVM.searchText, prompt: "Search recipes...")
+        .onSubmit(of: .search) {
+            Task { await recipeVM.search() }
+        }
+        .refreshable {
+            await recipeVM.loadRecipes(reset: true)
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showImportSheet = true }) {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showImportSheet) {
+            ImportRecipeView(recipeVM: recipeVM, isPresented: $showImportSheet)
+        }
+        .task {
+            if recipeVM.recipes.isEmpty {
+                await recipeVM.loadRecipes(reset: true)
+                await recipeVM.loadCategories()
+                await recipeVM.loadTags()
+            }
+        }
+    }
+
+    var recipeList: some View {
         List {
             if recipeVM.isLoading && recipeVM.recipes.isEmpty {
                 HStack {
@@ -40,34 +80,6 @@ struct RecipeListView: View {
                         await recipeVM.loadNextPage()
                     }
                 }
-            }
-        }
-        .navigationTitle("Recipes")
-        .navigationDestination(for: RecipeSummary.self) { recipe in
-            RecipeDetailView(recipeVM: recipeVM, slug: recipe.slug ?? "")
-        }
-        .searchable(text: $recipeVM.searchText, prompt: "Search recipes...")
-        .onSubmit(of: .search) {
-            Task { await recipeVM.search() }
-        }
-        .refreshable {
-            await recipeVM.loadRecipes(reset: true)
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { showImportSheet = true }) {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .sheet(isPresented: $showImportSheet) {
-            ImportRecipeView(recipeVM: recipeVM, isPresented: $showImportSheet)
-        }
-        .task {
-            if recipeVM.recipes.isEmpty {
-                await recipeVM.loadRecipes(reset: true)
-                await recipeVM.loadCategories()
-                await recipeVM.loadTags()
             }
         }
     }

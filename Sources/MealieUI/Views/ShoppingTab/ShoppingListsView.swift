@@ -13,6 +13,49 @@ struct ShoppingListsView: View {
     @State var newListName = ""
 
     var body: some View {
+        VStack(spacing: 0) {
+            if !shoppingVM.errorMessage.isEmpty {
+                ErrorBanner(message: shoppingVM.errorMessage) {
+                    shoppingVM.errorMessage = ""
+                }
+                .padding(.top, 4)
+            }
+            shoppingList
+        }
+        .navigationTitle("Shopping Lists")
+        .navigationDestination(for: ShoppingList.self) { list in
+            ShoppingListDetailView(shoppingVM: shoppingVM, listId: list.id ?? "")
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showNewListAlert = true }) {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .alert("New Shopping List", isPresented: $showNewListAlert) {
+            TextField("List name", text: $newListName)
+            Button("Cancel", role: .cancel) { newListName = "" }
+            Button("Create") {
+                Task {
+                    await shoppingVM.createShoppingList(name: newListName)
+                    newListName = ""
+                }
+            }
+        } message: {
+            Text("Enter a name for the new shopping list.")
+        }
+        .refreshable {
+            await shoppingVM.loadShoppingLists()
+        }
+        .task {
+            if shoppingVM.shoppingLists.isEmpty {
+                await shoppingVM.loadShoppingLists()
+            }
+        }
+    }
+
+    var shoppingList: some View {
         List {
             if shoppingVM.isLoading && shoppingVM.shoppingLists.isEmpty {
                 HStack {
@@ -57,37 +100,6 @@ struct ShoppingListsView: View {
                         }
                     }
                 }
-            }
-        }
-        .navigationTitle("Shopping Lists")
-        .navigationDestination(for: ShoppingList.self) { list in
-            ShoppingListDetailView(shoppingVM: shoppingVM, listId: list.id ?? "")
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { showNewListAlert = true }) {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .alert("New Shopping List", isPresented: $showNewListAlert) {
-            TextField("List name", text: $newListName)
-            Button("Cancel", role: .cancel) { newListName = "" }
-            Button("Create") {
-                Task {
-                    await shoppingVM.createShoppingList(name: newListName)
-                    newListName = ""
-                }
-            }
-        } message: {
-            Text("Enter a name for the new shopping list.")
-        }
-        .refreshable {
-            await shoppingVM.loadShoppingLists()
-        }
-        .task {
-            if shoppingVM.shoppingLists.isEmpty {
-                await shoppingVM.loadShoppingLists()
             }
         }
     }
