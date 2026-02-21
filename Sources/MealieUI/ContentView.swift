@@ -93,24 +93,27 @@ public struct ContentView: View {
             Divider()
 
             // Content area
-            VStack(spacing: 0) {
+            Group {
                 switch selectedTab {
                 case .recipes:
                     RecipeSplitView(recipeVM: recipeVM)
+                        .padding(.leading, 16)
                 case .mealPlan:
                     NavigationStack {
                         MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)
                     }
+                    .padding(.leading, 16)
                 case .shopping:
                     ShoppingSplitView(shoppingVM: shoppingVM)
+                        .padding(.leading, 16)
                 case .settings:
                     NavigationStack {
                         SettingsView(authVM: authVM, onThemeChange: { appTheme = $0 })
                     }
+                    .padding(.leading, 16)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.leading, 16)
         }
     }
 }
