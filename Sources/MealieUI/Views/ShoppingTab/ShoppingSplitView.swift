@@ -39,7 +39,6 @@ struct ShoppingSplitView: View {
                         Text("Enter a name for the new shopping list.")
                     }
             }
-            .safeAreaPadding(.leading, 8)
             .frame(width: 340)
 
             Divider()

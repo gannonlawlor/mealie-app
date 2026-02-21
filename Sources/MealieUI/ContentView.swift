@@ -101,14 +101,14 @@ public struct ContentView: View {
                     NavigationStack {
                         MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)
                     }
-                    .safeAreaPadding(.leading, 8)
+
                 case .shopping:
                     ShoppingSplitView(shoppingVM: shoppingVM)
                 case .settings:
                     NavigationStack {
                         SettingsView(authVM: authVM, onThemeChange: { appTheme = $0 })
                     }
-                    .safeAreaPadding(.leading, 8)
+
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
