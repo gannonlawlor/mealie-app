@@ -187,12 +187,14 @@ private let logger = Log(category: "Recipes")
             if let recipe = LocalRecipeStore.shared.loadRecipe(slug: slug), let id = recipe.id {
                 LocalRecipeStore.shared.deleteRecipe(id: id)
             }
-            recipes.removeAll { $0.slug == slug }
+            selectedRecipe = nil
+            await loadRecipes(reset: true)
             return true
         }
 
         do {
             try await MealieAPI.shared.deleteRecipe(slug: slug)
+            selectedRecipe = nil
             recipes.removeAll { $0.slug == slug }
             return true
         } catch {
