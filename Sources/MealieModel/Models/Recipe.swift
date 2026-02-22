@@ -56,6 +56,12 @@ public struct RecipeSummary: Codable, Sendable, Identifiable, Hashable {
     public let dateAdded: String?
     public let dateUpdated: String?
 
+    public init(id: String?, slug: String?, name: String?, description: String?, image: String?, recipeCategory: [RecipeCategory]?, tags: [RecipeTag]?, rating: Int?, dateAdded: String?, dateUpdated: String?) {
+        self.id = id; self.slug = slug; self.name = name; self.description = description; self.image = image
+        self.recipeCategory = recipeCategory; self.tags = tags; self.rating = rating
+        self.dateAdded = dateAdded; self.dateUpdated = dateUpdated
+    }
+
     public static func == (lhs: RecipeSummary, rhs: RecipeSummary) -> Bool {
         lhs.id == rhs.id
     }

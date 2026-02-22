@@ -85,7 +85,7 @@ struct RecipeSplitView: View {
                     Button(action: {
                         selectedSlug = recipe.slug
                     }) {
-                        RecipeRowView(recipe: recipe)
+                        RecipeRowView(recipe: recipe, isLocalMode: recipeVM.isLocalMode)
                     }
                     .listRowBackground(
                         selectedSlug == recipe.slug

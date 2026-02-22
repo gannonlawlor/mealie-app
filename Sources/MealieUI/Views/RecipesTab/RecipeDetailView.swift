@@ -31,12 +31,14 @@ struct RecipeDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 12) {
-                    Button(action: {
-                        guard let userId = AuthService.shared.savedUserId else { return }
-                        Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
-                    }) {
-                        Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.fill" : "heart")
-                            .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .secondary)
+                    if !recipeVM.isLocalMode {
+                        Button(action: {
+                            guard let userId = AuthService.shared.savedUserId else { return }
+                            Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
+                        }) {
+                            Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.fill" : "heart")
+                                .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .secondary)
+                        }
                     }
 
                     Menu {
@@ -84,23 +86,43 @@ struct RecipeDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Hero Image
                 if let recipeId = recipe.id {
-                    AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.clear)
-                            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(.secondary)
-                            }
+                    if recipeVM.isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                        AsyncImage(url: URL(fileURLWithPath: path)) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+                                .overlay {
+                                    Image(systemName: "photo")
+                                        .font(.largeTitle)
+                                        .foregroundStyle(.secondary)
+                                }
+                        }
+                        .frame(height: 250)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                    } else if !recipeVM.isLocalMode {
+                        AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+                                .overlay {
+                                    Image(systemName: "photo")
+                                        .font(.largeTitle)
+                                        .foregroundStyle(.secondary)
+                                }
+                        }
+                        .frame(height: 250)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
                     }
-                    .frame(height: 250)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal)
                 }
 
                 // Description

@@ -15,12 +15,25 @@ private let logger = Log(category: "Auth")
     public var serverInfo: AppInfo? = nil
     public var showServerSetup: Bool = true
 
+    public var isLocalMode: Bool {
+        AuthService.shared.savedAppMode == .local
+    }
+
     public init() {
-        if AuthService.shared.restoreSession() {
+        if AuthService.shared.savedAppMode == .local {
+            isAuthenticated = true
+            showServerSetup = false
+        } else if AuthService.shared.restoreSession() {
             isAuthenticated = true
             showServerSetup = false
             serverURL = AuthService.shared.savedServerURL ?? ""
         }
+    }
+
+    public func enterLocalMode() {
+        AuthService.shared.startLocalMode()
+        isAuthenticated = true
+        showServerSetup = false
     }
 
     public func validateServer() async {
@@ -91,8 +104,11 @@ private let logger = Log(category: "Auth")
     }
 
     public func logout() {
+        let wasLocal = isLocalMode
         AuthService.shared.clearSession()
-        CacheService.shared.clearAll()
+        if !wasLocal {
+            CacheService.shared.clearAll()
+        }
         isAuthenticated = false
         showServerSetup = true
         currentUser = nil

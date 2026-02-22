@@ -66,7 +66,7 @@ struct RecipeListView: View {
             } else {
                 ForEach(recipeVM.recipes) { recipe in
                     NavigationLink(value: recipe) {
-                        RecipeRowView(recipe: recipe)
+                        RecipeRowView(recipe: recipe, isLocalMode: recipeVM.isLocalMode)
                     }
                 }
 
@@ -87,20 +87,38 @@ struct RecipeListView: View {
 
 struct RecipeRowView: View {
     let recipe: RecipeSummary
+    var isLocalMode: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
             if let recipeId = recipe.id {
-                AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId, imageType: "tiny-original.webp"))) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
+                if isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                    AsyncImage(url: URL(fileURLWithPath: path)) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else if !isLocalMode {
+                    AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId, imageType: "tiny-original.webp"))) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
                     Image(systemName: "photo")
                         .foregroundStyle(.secondary)
+                        .frame(width: 60, height: 60)
                 }
-                .frame(width: 60, height: 60)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -150,6 +168,10 @@ struct ImportRecipeView: View {
     @Bindable var recipeVM: RecipeViewModel
     @Binding var isPresented: Bool
     @Environment(\.colorScheme) var colorScheme
+    @State var newRecipeName: String = ""
+    @State var showCreateForm: Bool = false
+    @State var createdRecipe: Recipe? = nil
+    @State var showEditSheet: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -157,10 +179,17 @@ struct ImportRecipeView: View {
                 Text("Import a Recipe")
                     .font(.headline)
 
-                Text("Paste a URL from a recipe website and Mealie will automatically import it.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                if recipeVM.isLocalMode {
+                    Text("Paste a URL and the recipe will be parsed and saved locally.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text("Paste a URL from a recipe website and Mealie will automatically import it.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
 
                 TextField("Recipe URL", text: $recipeVM.importURL)
                     .autocorrectionDisabled()
@@ -198,13 +227,71 @@ struct ImportRecipeView: View {
                         .foregroundStyle(recipeVM.importMessage.contains("successfully") ? .green : .red)
                 }
 
+                if recipeVM.isLocalMode {
+                    // Divider with "or"
+                    HStack {
+                        Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                        Text("or")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                    }
+                    .padding(.vertical, 4)
+
+                    if showCreateForm {
+                        TextField("Recipe Name", text: $newRecipeName)
+                            .padding()
+                            .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
+                            .cornerRadius(10)
+
+                        Button(action: {
+                            Task {
+                                let recipe = await recipeVM.createLocalRecipe(name: newRecipeName)
+                                createdRecipe = recipe
+                                showEditSheet = true
+                            }
+                        }) {
+                            Text("Create Recipe")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                        }
+                        .foregroundStyle(.white)
+                        .background(newRecipeName.isEmpty ? Color.gray : Color.accentColor)
+                        .cornerRadius(10)
+                        .disabled(newRecipeName.isEmpty)
+                    } else {
+                        Button(action: { showCreateForm = true }) {
+                            Label("Create New Recipe", systemImage: "plus.circle")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                        }
+                        .foregroundStyle(Color.accentColor)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.accentColor, lineWidth: 1.5)
+                        )
+                        .cornerRadius(10)
+                    }
+                }
+
                 Spacer()
             }
             .padding(24)
-            .navigationTitle("Import")
+            .navigationTitle(recipeVM.isLocalMode ? "Add Recipe" : "Import")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { isPresented = false }
+                }
+            }
+            .sheet(isPresented: $showEditSheet) {
+                if let recipe = createdRecipe {
+                    EditRecipeView(recipeVM: recipeVM, recipe: recipe, isPresented: $showEditSheet)
+                }
+            }
+            .onChange(of: showEditSheet) { _, newValue in
+                if !newValue {
+                    // Close import sheet after edit is dismissed
+                    isPresented = false
                 }
             }
         }

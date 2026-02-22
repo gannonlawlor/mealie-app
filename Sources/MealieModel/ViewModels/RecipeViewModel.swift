@@ -23,9 +23,35 @@ private let logger = Log(category: "Recipes")
     public var isImporting: Bool = false
     public var importMessage: String = ""
 
+    // Local mode
+    public var isLocalMode: Bool = false
+
     public init() {}
 
     public func loadRecipes(reset: Bool = false) async {
+        if isLocalMode {
+            isLoading = true
+            var all = LocalRecipeStore.shared.recipeSummaries()
+            // Filter by search
+            if !searchText.isEmpty {
+                let query = searchText.lowercased()
+                all = all.filter { ($0.name ?? "").lowercased().contains(query) || ($0.description ?? "").lowercased().contains(query) }
+            }
+            // Filter by category
+            if let cat = selectedCategory {
+                all = all.filter { ($0.recipeCategory ?? []).contains(where: { $0.slug == cat.slug }) }
+            }
+            // Filter by tag
+            if let tag = selectedTag {
+                all = all.filter { ($0.tags ?? []).contains(where: { $0.slug == tag.slug }) }
+            }
+            recipes = all
+            totalPages = 1
+            currentPage = 1
+            isLoading = false
+            return
+        }
+
         if reset {
             currentPage = 1
             // Show cached data immediately on first load
@@ -74,6 +100,12 @@ private let logger = Log(category: "Recipes")
     }
 
     public func loadRecipeDetail(slug: String) async {
+        if isLocalMode {
+            selectedRecipe = LocalRecipeStore.shared.loadRecipe(slug: slug)
+            isLoadingDetail = false
+            return
+        }
+
         // Show cached detail immediately
         if let cached = CacheService.shared.loadRecipeDetail(slug: slug) {
             selectedRecipe = cached
@@ -95,6 +127,21 @@ private let logger = Log(category: "Recipes")
     }
 
     public func loadCategories() async {
+        if isLocalMode {
+            var seen = Set<String>()
+            var result: [RecipeCategory] = []
+            for recipe in LocalRecipeStore.shared.loadAllRecipes() {
+                for cat in recipe.recipeCategory ?? [] {
+                    if let slug = cat.slug, !seen.contains(slug) {
+                        seen.insert(slug)
+                        result.append(cat)
+                    }
+                }
+            }
+            categories = result
+            return
+        }
+
         if categories.isEmpty, let cached = CacheService.shared.loadCategories() {
             categories = cached
         }
@@ -108,6 +155,21 @@ private let logger = Log(category: "Recipes")
     }
 
     public func loadTags() async {
+        if isLocalMode {
+            var seen = Set<String>()
+            var result: [RecipeTag] = []
+            for recipe in LocalRecipeStore.shared.loadAllRecipes() {
+                for tag in recipe.tags ?? [] {
+                    if let slug = tag.slug, !seen.contains(slug) {
+                        seen.insert(slug)
+                        result.append(tag)
+                    }
+                }
+            }
+            tags = result
+            return
+        }
+
         if tags.isEmpty, let cached = CacheService.shared.loadTags() {
             tags = cached
         }
@@ -121,6 +183,14 @@ private let logger = Log(category: "Recipes")
     }
 
     public func deleteRecipe(slug: String) async -> Bool {
+        if isLocalMode {
+            if let recipe = LocalRecipeStore.shared.loadRecipe(slug: slug), let id = recipe.id {
+                LocalRecipeStore.shared.deleteRecipe(id: id)
+            }
+            recipes.removeAll { $0.slug == slug }
+            return true
+        }
+
         do {
             try await MealieAPI.shared.deleteRecipe(slug: slug)
             recipes.removeAll { $0.slug == slug }
@@ -136,6 +206,35 @@ private let logger = Log(category: "Recipes")
         guard !importURL.isEmpty else { return }
         isImporting = true
         importMessage = ""
+
+        if isLocalMode {
+            do {
+                let recipe = try await RecipeURLParser.shared.parseRecipe(from: importURL)
+                LocalRecipeStore.shared.saveRecipe(recipe)
+                importMessage = "Recipe imported successfully!"
+                importURL = ""
+                isImporting = false
+                await loadRecipes(reset: true)
+            } catch let error as RecipeParseError {
+                switch error {
+                case .invalidURL:
+                    importMessage = "Invalid URL."
+                case .fetchFailed(let msg):
+                    importMessage = "Could not fetch page: \(msg)"
+                case .noRecipeFound:
+                    importMessage = "No recipe found on that page."
+                case .parsingFailed(let msg):
+                    importMessage = "Failed to parse recipe: \(msg)"
+                }
+                logger.error("Local import error: \(error)")
+                isImporting = false
+            } catch {
+                importMessage = "Failed to import recipe."
+                logger.error("Local import error: \(error)")
+                isImporting = false
+            }
+            return
+        }
 
         do {
             let slug = try await MealieAPI.shared.createRecipeFromURL(url: importURL)
@@ -198,6 +297,13 @@ private let logger = Log(category: "Recipes")
     // MARK: - Update Recipe
 
     public func updateRecipe(slug: String, data: Recipe) async -> Bool {
+        if isLocalMode {
+            LocalRecipeStore.shared.saveRecipe(data)
+            selectedRecipe = data
+            await loadRecipes(reset: true)
+            return true
+        }
+
         do {
             selectedRecipe = try await MealieAPI.shared.updateRecipe(slug: slug, data: data)
             await loadRecipes(reset: true)
@@ -207,5 +313,23 @@ private let logger = Log(category: "Recipes")
             logger.error("Failed to update recipe: \(error)")
             return false
         }
+    }
+
+    public func createLocalRecipe(name: String) async -> Recipe {
+        let id = UUID().uuidString
+        let slug = LocalRecipeStore.shared.generateSlug(from: name)
+        let now = ISO8601DateFormatter().string(from: Date())
+
+        let recipe = Recipe(
+            id: id, slug: slug, name: name, description: nil, image: nil,
+            recipeCategory: nil, tags: nil, tools: nil, rating: nil,
+            recipeYield: nil, recipeIngredient: nil, recipeInstructions: nil,
+            totalTime: nil, prepTime: nil, performTime: nil, nutrition: nil,
+            settings: nil, dateAdded: now, dateUpdated: now,
+            createdAt: now, updatedAt: now, orgURL: nil, extras: nil
+        )
+        LocalRecipeStore.shared.saveRecipe(recipe)
+        await loadRecipes(reset: true)
+        return recipe
     }
 }

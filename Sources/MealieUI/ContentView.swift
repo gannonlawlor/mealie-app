@@ -33,14 +33,20 @@ public struct ContentView: View {
                 if horizontalSizeClass == .regular {
                     iPadLayout
                         .task {
-                            await authVM.loadCurrentUser()
-                            recipeVM.loadFavorites(user: authVM.currentUser)
+                            recipeVM.isLocalMode = authVM.isLocalMode
+                            if !authVM.isLocalMode {
+                                await authVM.loadCurrentUser()
+                                recipeVM.loadFavorites(user: authVM.currentUser)
+                            }
                         }
                 } else {
                     mainTabView
                         .task {
-                            await authVM.loadCurrentUser()
-                            recipeVM.loadFavorites(user: authVM.currentUser)
+                            recipeVM.isLocalMode = authVM.isLocalMode
+                            if !authVM.isLocalMode {
+                                await authVM.loadCurrentUser()
+                                recipeVM.loadFavorites(user: authVM.currentUser)
+                            }
                         }
                 }
             } else {
@@ -60,20 +66,22 @@ public struct ContentView: View {
                 Label("Recipes", systemImage: "book")
             }
 
-            NavigationStack {
-                MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)
-            }
-            .tag(AppTab.mealPlan)
-            .tabItem {
-                Label("Meal Plan", systemImage: "calendar")
-            }
+            if !authVM.isLocalMode {
+                NavigationStack {
+                    MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)
+                }
+                .tag(AppTab.mealPlan)
+                .tabItem {
+                    Label("Meal Plan", systemImage: "calendar")
+                }
 
-            NavigationStack {
-                ShoppingListsView(shoppingVM: shoppingVM)
-            }
-            .tag(AppTab.shopping)
-            .tabItem {
-                Label("Shopping", systemImage: "cart")
+                NavigationStack {
+                    ShoppingListsView(shoppingVM: shoppingVM)
+                }
+                .tag(AppTab.shopping)
+                .tabItem {
+                    Label("Shopping", systemImage: "cart")
+                }
             }
 
             NavigationStack {
@@ -88,7 +96,7 @@ public struct ContentView: View {
 
     var iPadLayout: some View {
         HStack(spacing: 0) {
-            SidebarView(selectedTab: $selectedTab, authVM: authVM)
+            SidebarView(selectedTab: $selectedTab, authVM: authVM, isLocalMode: authVM.isLocalMode)
 
             Divider()
 
