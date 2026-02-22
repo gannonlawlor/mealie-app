@@ -320,6 +320,60 @@ final class LocalRecipeStoreTests: XCTestCase {
         XCTAssertEqual(loaded?.createdAt, "2025-03-01T10:00:00")
     }
 
+    // MARK: - Favorites
+
+    func testAddAndLoadFavorite() {
+        store.saveFavorites([]) // clean slate
+        store.addFavorite(slug: "pasta")
+        store.addFavorite(slug: "cake")
+
+        let favorites = store.loadFavorites()
+        XCTAssertTrue(favorites.contains("pasta"))
+        XCTAssertTrue(favorites.contains("cake"))
+        XCTAssertEqual(favorites.count, 2)
+
+        store.saveFavorites([]) // cleanup
+    }
+
+    func testRemoveFavorite() {
+        store.saveFavorites([])
+        store.addFavorite(slug: "pasta")
+        store.addFavorite(slug: "cake")
+        store.removeFavorite(slug: "pasta")
+
+        let favorites = store.loadFavorites()
+        XCTAssertFalse(favorites.contains("pasta"))
+        XCTAssertTrue(favorites.contains("cake"))
+        XCTAssertEqual(favorites.count, 1)
+
+        store.saveFavorites([]) // cleanup
+    }
+
+    func testFavoritesStartEmpty() {
+        store.saveFavorites([])
+        XCTAssertTrue(store.loadFavorites().isEmpty)
+    }
+
+    func testAddDuplicateFavoriteIsNoOp() {
+        store.saveFavorites([])
+        store.addFavorite(slug: "pasta")
+        store.addFavorite(slug: "pasta")
+
+        XCTAssertEqual(store.loadFavorites().count, 1)
+
+        store.saveFavorites([]) // cleanup
+    }
+
+    func testRemoveNonexistentFavoriteIsNoOp() {
+        store.saveFavorites([])
+        store.addFavorite(slug: "pasta")
+        store.removeFavorite(slug: "nonexistent")
+
+        XCTAssertEqual(store.loadFavorites().count, 1)
+
+        store.saveFavorites([]) // cleanup
+    }
+
     // MARK: - Empty Store
 
     func testEmptyStoreReturnsEmptyArrays() {

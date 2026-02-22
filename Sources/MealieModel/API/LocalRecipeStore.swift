@@ -95,6 +95,31 @@ public class LocalRecipeStore: @unchecked Sendable {
         try? FileManager.default.removeItem(at: filePath)
     }
 
+    // MARK: - Favorites
+
+    private let favoritesKey = "mealie_local_favorites"
+
+    public func loadFavorites() -> Set<String> {
+        let array = UserDefaults.standard.stringArray(forKey: favoritesKey) ?? []
+        return Set(array)
+    }
+
+    public func saveFavorites(_ favorites: Set<String>) {
+        UserDefaults.standard.set(Array(favorites), forKey: favoritesKey)
+    }
+
+    public func addFavorite(slug: String) {
+        var favorites = loadFavorites()
+        favorites.insert(slug)
+        saveFavorites(favorites)
+    }
+
+    public func removeFavorite(slug: String) {
+        var favorites = loadFavorites()
+        favorites.remove(slug)
+        saveFavorites(favorites)
+    }
+
     // MARK: - Helpers
 
     public func generateSlug(from name: String) -> String {

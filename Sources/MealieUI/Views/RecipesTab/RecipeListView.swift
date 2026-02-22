@@ -69,6 +69,15 @@ struct RecipeListView: View {
                         RecipeRowView(recipe: recipe, isLocalMode: recipeVM.isLocalMode)
                     }
                 }
+                .onDelete { offsets in
+                    Task {
+                        for index in offsets {
+                            if let slug = recipeVM.recipes[index].slug {
+                                await recipeVM.deleteRecipe(slug: slug)
+                            }
+                        }
+                    }
+                }
 
                 if recipeVM.currentPage < recipeVM.totalPages {
                     HStack {

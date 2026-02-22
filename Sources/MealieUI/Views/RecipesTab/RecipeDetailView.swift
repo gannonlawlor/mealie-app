@@ -31,14 +31,12 @@ struct RecipeDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 12) {
-                    if !recipeVM.isLocalMode {
-                        Button(action: {
-                            guard let userId = AuthService.shared.savedUserId else { return }
-                            Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
-                        }) {
-                            Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.fill" : "heart")
-                                .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .secondary)
-                        }
+                    Button(action: {
+                        let userId = AuthService.shared.savedUserId ?? ""
+                        Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
+                    }) {
+                        Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.fill" : "heart")
+                            .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .secondary)
                     }
 
                     Menu {

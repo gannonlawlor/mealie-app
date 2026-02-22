@@ -34,7 +34,9 @@ public struct ContentView: View {
                     iPadLayout
                         .task {
                             recipeVM.isLocalMode = authVM.isLocalMode
-                            if !authVM.isLocalMode {
+                            if authVM.isLocalMode {
+                                recipeVM.loadFavorites(user: nil)
+                            } else {
                                 await authVM.loadCurrentUser()
                                 recipeVM.loadFavorites(user: authVM.currentUser)
                             }
@@ -43,7 +45,9 @@ public struct ContentView: View {
                     mainTabView
                         .task {
                             recipeVM.isLocalMode = authVM.isLocalMode
-                            if !authVM.isLocalMode {
+                            if authVM.isLocalMode {
+                                recipeVM.loadFavorites(user: nil)
+                            } else {
                                 await authVM.loadCurrentUser()
                                 recipeVM.loadFavorites(user: authVM.currentUser)
                             }

@@ -93,6 +93,19 @@ struct RecipeSplitView: View {
                             : Color.clear
                     )
                 }
+                .onDelete { offsets in
+                    Task {
+                        for index in offsets {
+                            let slug = recipeVM.recipes[index].slug
+                            if slug == selectedSlug {
+                                selectedSlug = nil
+                            }
+                            if let slug = slug {
+                                await recipeVM.deleteRecipe(slug: slug)
+                            }
+                        }
+                    }
+                }
 
                 if recipeVM.currentPage < recipeVM.totalPages {
                     HStack {

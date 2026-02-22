@@ -259,6 +259,10 @@ private let logger = Log(category: "Recipes")
     public var favoriteRecipes: Set<String> = []
 
     public func loadFavorites(user: User?) {
+        if isLocalMode {
+            favoriteRecipes = LocalRecipeStore.shared.loadFavorites()
+            return
+        }
         guard let slugs = user?.favoriteRecipes else { return }
         favoriteRecipes = Set(slugs)
     }
@@ -269,6 +273,18 @@ private let logger = Log(category: "Recipes")
 
     public func toggleFavorite(slug: String, userId: String) async {
         let wasFavorite = favoriteRecipes.contains(slug)
+
+        if isLocalMode {
+            if wasFavorite {
+                favoriteRecipes.remove(slug)
+                LocalRecipeStore.shared.removeFavorite(slug: slug)
+            } else {
+                favoriteRecipes.insert(slug)
+                LocalRecipeStore.shared.addFavorite(slug: slug)
+            }
+            return
+        }
+
         // Optimistic update
         if wasFavorite {
             favoriteRecipes.remove(slug)
