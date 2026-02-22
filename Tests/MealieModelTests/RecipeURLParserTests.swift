@@ -353,6 +353,52 @@ final class RecipeURLParserTests: XCTestCase {
         XCTAssertEqual(recipe.name, "Found It")
     }
 
+    // MARK: - HTML Entity Decoding
+
+    func testDecodesHTMLEntitiesInIngredients() throws {
+        let html = """
+        <html><head>
+        <script type="application/ld+json">
+        {
+            "@type": "Recipe",
+            "name": "Test",
+            "recipeIngredient": [
+                "&frac14; cup raw pepitas",
+                "2 medium red beets (we&#8217;ll use them raw)",
+                "&#8532; cup (2 &frac12; ounces) crumbled feta",
+                "Homemade vinaigrette (about &frac14; cup)"
+            ]
+        }
+        </script>
+        </head><body></body></html>
+        """
+
+        let recipe = try parser.parseRecipeFromHTML(html, sourceURL: "https://example.com")
+        XCTAssertEqual(recipe.recipeIngredient?[0].display, "¼ cup raw pepitas")
+        XCTAssertEqual(recipe.recipeIngredient?[1].display, "2 medium red beets (we\u{2019}ll use them raw)")
+        XCTAssertEqual(recipe.recipeIngredient?[2].display, "⅔ cup (2 ½ ounces) crumbled feta")
+        XCTAssertEqual(recipe.recipeIngredient?[3].display, "Homemade vinaigrette (about ¼ cup)")
+    }
+
+    func testDecodesHTMLEntitiesInInstructions() throws {
+        let html = """
+        <html><head>
+        <script type="application/ld+json">
+        {
+            "@type": "Recipe",
+            "name": "Test",
+            "recipeInstructions": [
+                {"@type": "HowToStep", "text": "Don&#8217;t overcook the pasta &mdash; it should be al dente."}
+            ]
+        }
+        </script>
+        </head><body></body></html>
+        """
+
+        let recipe = try parser.parseRecipeFromHTML(html, sourceURL: "https://example.com")
+        XCTAssertEqual(recipe.recipeInstructions?[0].text, "Don\u{2019}t overcook the pasta — it should be al dente.")
+    }
+
     // MARK: - Script Tag Variations
 
     func testParsesScriptTagWithExtraAttributes() throws {

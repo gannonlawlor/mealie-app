@@ -152,9 +152,10 @@ public class RecipeURLParser: @unchecked Sendable {
 
     private func mapToRecipe(_ dict: [String: Any], sourceURL: String) throws -> Recipe {
         let recipeId = UUID().uuidString
-        let name = dict["name"] as? String ?? "Untitled"
+        let rawName = dict["name"] as? String ?? "Untitled"
+        let name = decodeHTMLEntities(rawName)
         let slug = LocalRecipeStore.shared.generateSlug(from: name)
-        let description = dict["description"] as? String
+        let description = (dict["description"] as? String).map { decodeHTMLEntities($0) }
 
         // Image URL
         let imageURL = extractImageURL(from: dict["image"])
@@ -169,8 +170,9 @@ public class RecipeURLParser: @unchecked Sendable {
         }
 
         // Ingredients
-        let ingredients: [RecipeIngredient]? = (dict["recipeIngredient"] as? [String])?.map { text in
-            RecipeIngredient(
+        let ingredients: [RecipeIngredient]? = (dict["recipeIngredient"] as? [String])?.map { rawText in
+            let text = decodeHTMLEntities(rawText)
+            return RecipeIngredient(
                 quantity: nil, unit: nil, food: nil,
                 note: text, isFood: false, disableAmount: true,
                 display: text, title: nil, originalText: text, referenceId: UUID().uuidString
@@ -247,8 +249,8 @@ public class RecipeURLParser: @unchecked Sendable {
 
         // Array of strings
         if let strings = value as? [String] {
-            return strings.map { text in
-                RecipeInstruction(id: UUID().uuidString, title: nil, text: text, ingredientReferences: nil)
+            return strings.map { rawText in
+                RecipeInstruction(id: UUID().uuidString, title: nil, text: decodeHTMLEntities(rawText), ingredientReferences: nil)
             }
         }
 
@@ -258,16 +260,14 @@ public class RecipeURLParser: @unchecked Sendable {
                 // Handle HowToSection with itemListElement
                 if let sectionName = dict["name"] as? String,
                    let items = dict["itemListElement"] as? [[String: Any]] {
-                    // Flatten section steps
                     let steps = items.compactMap { item -> RecipeInstruction? in
-                        let text = item["text"] as? String
-                        return text != nil ? RecipeInstruction(id: UUID().uuidString, title: sectionName, text: text, ingredientReferences: nil) : nil
+                        guard let text = item["text"] as? String else { return nil }
+                        return RecipeInstruction(id: UUID().uuidString, title: decodeHTMLEntities(sectionName), text: decodeHTMLEntities(text), ingredientReferences: nil)
                     }
-                    return steps.first // Simplification: return first step with section title
+                    return steps.first
                 }
-                let text = dict["text"] as? String
-                guard let text = text else { return nil }
-                return RecipeInstruction(id: UUID().uuidString, title: nil, text: text, ingredientReferences: nil)
+                guard let text = dict["text"] as? String else { return nil }
+                return RecipeInstruction(id: UUID().uuidString, title: nil, text: decodeHTMLEntities(text), ingredientReferences: nil)
             }
         }
 
@@ -292,6 +292,57 @@ public class RecipeURLParser: @unchecked Sendable {
             sodiumContent: dict["sodiumContent"] as? String,
             sugarContent: dict["sugarContent"] as? String
         )
+    }
+
+    // MARK: - HTML Entity Decoding
+
+    private func decodeHTMLEntities(_ string: String) -> String {
+        // Named entities
+        let namedEntities: [String: String] = [
+            "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"",
+            "&apos;": "'", "&nbsp;": " ",
+            "&frac12;": "½", "&frac13;": "⅓", "&frac14;": "¼",
+            "&frac15;": "⅕", "&frac16;": "⅙", "&frac18;": "⅛",
+            "&frac23;": "⅔", "&frac25;": "⅖", "&frac34;": "¾",
+            "&frac35;": "⅗", "&frac38;": "⅜", "&frac45;": "⅘",
+            "&frac56;": "⅚", "&frac58;": "⅝", "&frac78;": "⅞",
+            "&deg;": "°", "&mdash;": "—", "&ndash;": "–",
+            "&lsquo;": "\u{2018}", "&rsquo;": "\u{2019}",
+            "&ldquo;": "\u{201C}", "&rdquo;": "\u{201D}",
+            "&hellip;": "…", "&trade;": "™", "&copy;": "©",
+            "&reg;": "®", "&times;": "×",
+        ]
+
+        var result = string
+        for (entity, replacement) in namedEntities {
+            result = result.replacingOccurrences(of: entity, with: replacement)
+        }
+
+        // Numeric entities: &#8217; &#8532; etc.
+        while let startRange = result.range(of: "&#") {
+            guard let endRange = result.range(of: ";", range: startRange.upperBound..<result.endIndex) else {
+                break
+            }
+            let numberStr = String(result[startRange.upperBound..<endRange.lowerBound])
+            let codePoint: UInt32?
+            if numberStr.hasPrefix("x") || numberStr.hasPrefix("X") {
+                codePoint = UInt32(numberStr.dropFirst(), radix: 16)
+            } else {
+                codePoint = UInt32(numberStr)
+            }
+            if let cp = codePoint, let scalar = Unicode.Scalar(cp) {
+                result.replaceSubrange(startRange.lowerBound..<endRange.upperBound, with: String(scalar))
+            } else {
+                // Can't decode, skip past to avoid infinite loop
+                break
+            }
+        }
+
+        return result
+    }
+
+    private func decodeHTMLInArray(_ strings: [String]) -> [String] {
+        strings.map { decodeHTMLEntities($0) }
     }
 
     private func extractStringArray(from value: Any?) -> [String]? {
