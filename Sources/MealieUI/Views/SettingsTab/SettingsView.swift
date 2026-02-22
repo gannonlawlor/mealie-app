@@ -12,6 +12,7 @@ struct SettingsView: View {
     var onThemeChange: ((AppTheme) -> Void)? = nil
     @State var showLogoutAlert = false
     @State var selectedTheme: AppTheme = AppSettings.shared.theme
+    @State var keepScreenAwake: Bool = AppSettings.shared.keepScreenAwake
 
     var body: some View {
         List {
@@ -27,6 +28,15 @@ struct SettingsView: View {
                     AppSettings.shared.theme = newValue
                     onThemeChange?(newValue)
                 }
+            }
+
+            Section {
+                Toggle("Keep Screen Awake", isOn: $keepScreenAwake)
+                    .onChange(of: keepScreenAwake) { _, newValue in
+                        AppSettings.shared.keepScreenAwake = newValue
+                    }
+            } footer: {
+                Text("Prevents the screen from dimming while viewing a recipe.")
             }
 
             if authVM.isLocalMode {

@@ -77,6 +77,18 @@ struct RecipeDetailView: View {
         .task {
             await recipeVM.loadRecipeDetail(slug: slug)
         }
+        .onAppear {
+            if AppSettings.shared.keepScreenAwake {
+                #if !os(Android)
+                UIApplication.shared.isIdleTimerDisabled = true
+                #endif
+            }
+        }
+        .onDisappear {
+            #if !os(Android)
+            UIApplication.shared.isIdleTimerDisabled = false
+            #endif
+        }
     }
 
     func recipeContent(_ recipe: Recipe) -> some View {
