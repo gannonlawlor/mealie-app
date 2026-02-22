@@ -22,7 +22,7 @@ public class RecipeURLParser: @unchecked Sendable {
             throw RecipeParseError.noRecipeFound
         }
         for block in jsonBlocks {
-            if let recipe = try? findRecipe(in: block, sourceURL: sourceURL) {
+            if let recipe = try findRecipe(in: block, sourceURL: sourceURL) {
                 return recipe
             }
         }
@@ -39,9 +39,14 @@ public class RecipeURLParser: @unchecked Sendable {
         let html: String
         do {
             var request = URLRequest(url: url)
-            request.setValue("Mozilla/5.0 (compatible; MealieApp/1.0)", forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await URLSession.shared.data(for: request)
-            guard let text = String(data: data, encoding: .utf8) else {
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+            request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
+            request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                logger.info("Fetch \(urlString) -> HTTP \(httpResponse.statusCode), \(data.count) bytes")
+            }
+            guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) else {
                 throw RecipeParseError.fetchFailed("Could not decode HTML")
             }
             html = text
@@ -53,17 +58,24 @@ public class RecipeURLParser: @unchecked Sendable {
 
         // Extract JSON-LD blocks
         let jsonBlocks = extractJSONLD(from: html)
+        logger.info("Found \(jsonBlocks.count) JSON-LD blocks in \(urlString)")
+
         if jsonBlocks.isEmpty {
             throw RecipeParseError.noRecipeFound
         }
 
         // Find recipe object in JSON-LD
         for block in jsonBlocks {
-            if let recipe = try? findRecipe(in: block, sourceURL: urlString) {
-                return recipe
+            do {
+                if let recipe = try findRecipe(in: block, sourceURL: urlString) {
+                    return recipe
+                }
+            } catch {
+                logger.error("Error mapping recipe from JSON-LD: \(error)")
             }
         }
 
+        logger.error("JSON-LD blocks found but none contained a Recipe type")
         throw RecipeParseError.noRecipeFound
     }
 
@@ -71,12 +83,16 @@ public class RecipeURLParser: @unchecked Sendable {
 
     private func extractJSONLD(from html: String) -> [Any] {
         var results: [Any] = []
-        let scriptTag = "<script type=\"application/ld+json\">"
+        let marker = "application/ld+json"
         let endTag = "</script>"
 
         var searchRange = html.startIndex..<html.endIndex
-        while let startRange = html.range(of: scriptTag, options: .caseInsensitive, range: searchRange) {
-            let contentStart = startRange.upperBound
+        while let markerRange = html.range(of: marker, options: .caseInsensitive, range: searchRange) {
+            // Find the closing > of this script tag
+            guard let tagClose = html.range(of: ">", range: markerRange.upperBound..<html.endIndex) else {
+                break
+            }
+            let contentStart = tagClose.upperBound
             guard let endRange = html.range(of: endTag, options: .caseInsensitive, range: contentStart..<html.endIndex) else {
                 break
             }
@@ -84,6 +100,8 @@ public class RecipeURLParser: @unchecked Sendable {
             if let data = jsonString.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) {
                 results.append(json)
+            } else {
+                logger.info("Failed to parse JSON-LD block (\(jsonString.prefix(100))...)")
             }
             searchRange = endRange.upperBound..<html.endIndex
         }
@@ -93,19 +111,18 @@ public class RecipeURLParser: @unchecked Sendable {
     // MARK: - Recipe Finding
 
     private func findRecipe(in json: Any, sourceURL: String) throws -> Recipe? {
-        // If it's a dict with @graph, search inside the graph array
         if let dict = json as? [String: Any] {
+            // Check if this dict is a Recipe
+            if isRecipeType(dict) {
+                return try mapToRecipe(dict, sourceURL: sourceURL)
+            }
+            // If it has @graph, search inside
             if let graph = dict["@graph"] as? [Any] {
                 for item in graph {
                     if let recipe = try findRecipe(in: item, sourceURL: sourceURL) {
                         return recipe
                     }
                 }
-                return nil
-            }
-            // Check if this dict is a Recipe
-            if isRecipeType(dict) {
-                return try mapToRecipe(dict, sourceURL: sourceURL)
             }
         }
 

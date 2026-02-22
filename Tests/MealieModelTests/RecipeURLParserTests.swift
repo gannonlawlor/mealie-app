@@ -353,6 +353,110 @@ final class RecipeURLParserTests: XCTestCase {
         XCTAssertEqual(recipe.name, "Found It")
     }
 
+    // MARK: - Script Tag Variations
+
+    func testParsesScriptTagWithExtraAttributes() throws {
+        let html = """
+        <html><head>
+        <script type="application/ld+json" id="schema-org" class="yoast-schema-graph">
+        {"@type": "Recipe", "name": "Extra Attrs Recipe"}
+        </script>
+        </head><body></body></html>
+        """
+
+        let recipe = try parser.parseRecipeFromHTML(html, sourceURL: "https://example.com")
+        XCTAssertEqual(recipe.name, "Extra Attrs Recipe")
+    }
+
+    func testParsesScriptTagWithSingleQuotes() throws {
+        let html = """
+        <html><head>
+        <script type='application/ld+json'>
+        {"@type": "Recipe", "name": "Single Quotes"}
+        </script>
+        </head><body></body></html>
+        """
+
+        let recipe = try parser.parseRecipeFromHTML(html, sourceURL: "https://example.com")
+        XCTAssertEqual(recipe.name, "Single Quotes")
+    }
+
+    func testParsesScriptTagWithWhitespace() throws {
+        let html = """
+        <html><head>
+        <script  type="application/ld+json" >
+        {"@type": "Recipe", "name": "Whitespace Tag"}
+        </script>
+        </head><body></body></html>
+        """
+
+        let recipe = try parser.parseRecipeFromHTML(html, sourceURL: "https://example.com")
+        XCTAssertEqual(recipe.name, "Whitespace Tag")
+    }
+
+    // MARK: - Real-world Site Structure (cookieandkate.com style)
+
+    func testParsesRecipeFromGraphWithMultipleTypes() throws {
+        let html = """
+        <html><head>
+        <script type="application/ld+json" class="yoast-schema-graph">
+        {
+            "@context": "https://schema.org",
+            "@graph": [
+                {"@type": "WebSite", "name": "Cookie and Kate"},
+                {"@type": "WebPage", "name": "Beet Salad"},
+                {"@type": "Article", "name": "Beet Salad Post"},
+                {
+                    "@type": "Recipe",
+                    "name": "Simple Beet, Arugula and Feta Salad",
+                    "description": "Features raw beets and balsamic dressing",
+                    "prepTime": "PT15M",
+                    "cookTime": "PT5M",
+                    "totalTime": "PT20M",
+                    "recipeYield": ["4", "4 salads"],
+                    "recipeCategory": "Salad",
+                    "recipeIngredient": [
+                        "3 medium beets, peeled",
+                        "5 oz arugula",
+                        "1/3 cup crumbled feta"
+                    ],
+                    "recipeInstructions": [
+                        {"@type": "HowToStep", "text": "Peel and grate the beets."},
+                        {"@type": "HowToStep", "text": "Toss with arugula and dressing."},
+                        {"@type": "HowToStep", "text": "Top with feta and pepitas."}
+                    ],
+                    "nutrition": {
+                        "@type": "NutritionInformation",
+                        "calories": "195 calories",
+                        "carbohydrateContent": "9.6 g",
+                        "proteinContent": "5.4 g",
+                        "fatContent": "15.6 g"
+                    },
+                    "image": ["https://example.com/beet-salad.jpg"]
+                },
+                {"@type": "Person", "name": "Kate"}
+            ]
+        }
+        </script>
+        </head><body></body></html>
+        """
+
+        let recipe = try parser.parseRecipeFromHTML(html, sourceURL: "https://cookieandkate.com/beet-salad")
+        XCTAssertEqual(recipe.name, "Simple Beet, Arugula and Feta Salad")
+        XCTAssertEqual(recipe.description, "Features raw beets and balsamic dressing")
+        XCTAssertEqual(recipe.prepTime, "PT15M")
+        XCTAssertEqual(recipe.performTime, "PT5M")
+        XCTAssertEqual(recipe.totalTime, "PT20M")
+        XCTAssertEqual(recipe.recipeYield, "4")
+        XCTAssertEqual(recipe.recipeIngredient?.count, 3)
+        XCTAssertEqual(recipe.recipeInstructions?.count, 3)
+        XCTAssertEqual(recipe.nutrition?.calories, "195 calories")
+        XCTAssertEqual(recipe.nutrition?.proteinContent, "5.4 g")
+        XCTAssertEqual(recipe.recipeCategory?.count, 1)
+        XCTAssertEqual(recipe.recipeCategory?.first?.name, "Salad")
+        XCTAssertEqual(recipe.orgURL, "https://cookieandkate.com/beet-salad")
+    }
+
     // MARK: - Minimal Recipe
 
     func testParsesMinimalRecipe() throws {
