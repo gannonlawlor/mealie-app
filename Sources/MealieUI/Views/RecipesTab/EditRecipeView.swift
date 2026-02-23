@@ -20,6 +20,8 @@ struct EditRecipeView: View {
     @State var totalTime: String = ""
     @State var ingredientTexts: [String] = []
     @State var instructionTexts: [String] = []
+    @State var selectedCategoryIds: Set<String> = []
+    @State var selectedTagIds: Set<String> = []
     @State var isSaving = false
 
     var body: some View {
@@ -35,6 +37,62 @@ struct EditRecipeView: View {
                     TextField("Prep Time", text: $prepTime)
                     TextField("Cook Time", text: $performTime)
                     TextField("Total Time", text: $totalTime)
+                }
+
+                if !recipeVM.categories.isEmpty {
+                    Section("Categories") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(recipeVM.categories) { cat in
+                                    if let catId = cat.id {
+                                        Button(action: {
+                                            if selectedCategoryIds.contains(catId) {
+                                                selectedCategoryIds.remove(catId)
+                                            } else {
+                                                selectedCategoryIds.insert(catId)
+                                            }
+                                        }) {
+                                            Text(cat.name ?? "")
+                                                .font(.subheadline)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(selectedCategoryIds.contains(catId) ? Color.accentColor : Color.accentColor.opacity(0.12))
+                                                .foregroundStyle(selectedCategoryIds.contains(catId) ? .white : Color.accentColor)
+                                                .cornerRadius(16)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !recipeVM.tags.isEmpty {
+                    Section("Tags") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(recipeVM.tags) { tag in
+                                    if let tagId = tag.id {
+                                        Button(action: {
+                                            if selectedTagIds.contains(tagId) {
+                                                selectedTagIds.remove(tagId)
+                                            } else {
+                                                selectedTagIds.insert(tagId)
+                                            }
+                                        }) {
+                                            Text(tag.name ?? "")
+                                                .font(.subheadline)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(selectedTagIds.contains(tagId) ? Color.accentColor : Color.accentColor.opacity(0.12))
+                                                .foregroundStyle(selectedTagIds.contains(tagId) ? .white : Color.accentColor)
+                                                .cornerRadius(16)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Section("Ingredients") {
@@ -102,6 +160,12 @@ struct EditRecipeView: View {
         if let instructions = recipe.recipeInstructions {
             instructionTexts = instructions.map { $0.text ?? "" }
         }
+        if let cats = recipe.recipeCategory {
+            selectedCategoryIds = Set(cats.compactMap { $0.id })
+        }
+        if let recipeTags = recipe.tags {
+            selectedTagIds = Set(recipeTags.compactMap { $0.id })
+        }
     }
 
     func save() async {
@@ -121,14 +185,17 @@ struct EditRecipeView: View {
             )
         }
 
+        let selectedCategories = recipeVM.categories.filter { selectedCategoryIds.contains($0.id ?? "") }
+        let selectedTags = recipeVM.tags.filter { selectedTagIds.contains($0.id ?? "") }
+
         let updated = Recipe(
             id: recipe.id,
             slug: recipe.slug,
             name: name,
             description: description.isEmpty ? nil : description,
             image: recipe.image,
-            recipeCategory: recipe.recipeCategory,
-            tags: recipe.tags,
+            recipeCategory: selectedCategories.isEmpty ? nil : selectedCategories,
+            tags: selectedTags.isEmpty ? nil : selectedTags,
             tools: recipe.tools,
             rating: recipe.rating,
             recipeYield: recipeYield.isEmpty ? nil : recipeYield,

@@ -16,7 +16,12 @@ struct RecipeSplitView: View {
         HStack(spacing: 0) {
             // Left: recipe list
             NavigationStack {
-                recipeListColumn
+                VStack(spacing: 0) {
+                    if !recipeVM.categories.isEmpty || !recipeVM.tags.isEmpty {
+                        filterChips
+                    }
+                    recipeListColumn
+                }
                     .navigationTitle("Recipes")
                     .searchable(text: $recipeVM.searchText, prompt: "Search recipes...")
                     .onSubmit(of: .search) {
@@ -65,6 +70,51 @@ struct RecipeSplitView: View {
                 await recipeVM.loadCategories()
                 await recipeVM.loadTags()
             }
+        }
+    }
+
+    var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(recipeVM.categories) { cat in
+                    Button(action: {
+                        if recipeVM.selectedCategory?.id == cat.id {
+                            recipeVM.selectedCategory = nil
+                        } else {
+                            recipeVM.selectedCategory = cat
+                        }
+                        Task { await recipeVM.loadRecipes(reset: true) }
+                    }) {
+                        Label(cat.name ?? "", systemImage: "folder")
+                            .font(.subheadline)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(recipeVM.selectedCategory?.id == cat.id ? Color.accentColor : Color.accentColor.opacity(0.12))
+                            .foregroundStyle(recipeVM.selectedCategory?.id == cat.id ? .white : Color.accentColor)
+                            .cornerRadius(16)
+                    }
+                }
+                ForEach(recipeVM.tags) { tag in
+                    Button(action: {
+                        if recipeVM.selectedTag?.id == tag.id {
+                            recipeVM.selectedTag = nil
+                        } else {
+                            recipeVM.selectedTag = tag
+                        }
+                        Task { await recipeVM.loadRecipes(reset: true) }
+                    }) {
+                        Label(tag.name ?? "", systemImage: "tag")
+                            .font(.subheadline)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(recipeVM.selectedTag?.id == tag.id ? Color.accentColor : Color.accentColor.opacity(0.12))
+                            .foregroundStyle(recipeVM.selectedTag?.id == tag.id ? .white : Color.accentColor)
+                            .cornerRadius(16)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
     }
 
