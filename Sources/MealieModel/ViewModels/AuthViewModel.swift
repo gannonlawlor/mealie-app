@@ -108,6 +108,7 @@ private let logger = Log(category: "Auth")
         AuthService.shared.clearSession()
         if !wasLocal {
             CacheService.shared.clearAll()
+            OfflineRecipeStore.shared.clearAll()
         }
         isAuthenticated = false
         showServerSetup = true

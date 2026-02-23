@@ -39,6 +39,20 @@ struct RecipeDetailView: View {
                             .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .secondary)
                     }
 
+                    if !recipeVM.isLocalMode, let recipeId = recipeVM.selectedRecipe?.id {
+                        Button(action: {
+                            Task { await recipeVM.toggleOffline(slug: slug, recipeId: recipeId) }
+                        }) {
+                            if recipeVM.isSavingOffline {
+                                ProgressView()
+                            } else {
+                                Image(systemName: recipeVM.isOffline(recipeId: recipeId) ? "arrow.down.circle.fill" : "arrow.down.circle")
+                                    .foregroundStyle(recipeVM.isOffline(recipeId: recipeId) ? .green : .secondary)
+                            }
+                        }
+                        .disabled(recipeVM.isSavingOffline)
+                    }
+
                     Menu {
                         Button(action: { showEditSheet = true }) {
                             Label("Edit Recipe", systemImage: "pencil")
@@ -115,23 +129,43 @@ struct RecipeDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .padding(.horizontal)
                     } else if !recipeVM.isLocalMode {
-                        AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Rectangle()
-                                .fill(Color.clear)
-                                .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                                .overlay {
-                                    Image(systemName: "photo")
-                                        .font(.largeTitle)
-                                        .foregroundStyle(.secondary)
-                                }
+                        if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                            AsyncImage(url: URL(fileURLWithPath: offlinePath)) { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+                                    .overlay {
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                            .foregroundStyle(.secondary)
+                                    }
+                            }
+                            .frame(height: 250)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal)
+                        } else {
+                            AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+                                    .overlay {
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                            .foregroundStyle(.secondary)
+                                    }
+                            }
+                            .frame(height: 250)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal)
                         }
-                        .frame(height: 250)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
                     }
                 }
 

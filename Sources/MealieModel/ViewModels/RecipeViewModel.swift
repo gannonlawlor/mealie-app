@@ -26,6 +26,10 @@ private let logger = Log(category: "Recipes")
     // Local mode
     public var isLocalMode: Bool = false
 
+    // Offline
+    public var offlineRecipeIds: Set<String> = []
+    public var isSavingOffline: Bool = false
+
     public init() {}
 
     public func loadRecipes(reset: Bool = false) async {
@@ -119,7 +123,12 @@ private let logger = Log(category: "Recipes")
             isLoadingDetail = false
         } catch {
             if selectedRecipe == nil {
-                errorMessage = "Failed to load recipe."
+                // Try offline fallback
+                if let offline = OfflineRecipeStore.shared.loadRecipeBySlug(slug: slug) {
+                    selectedRecipe = offline
+                } else {
+                    errorMessage = "Failed to load recipe."
+                }
             }
             logger.error("Failed to load recipe detail: \(error)")
             isLoadingDetail = false
@@ -330,6 +339,51 @@ private let logger = Log(category: "Recipes")
             errorMessage = "Failed to update recipe."
             logger.error("Failed to update recipe: \(error)")
             return false
+        }
+    }
+
+    // MARK: - Offline
+
+    public func loadOfflineIds() {
+        offlineRecipeIds = OfflineRecipeStore.shared.savedRecipeIds()
+    }
+
+    public func isOffline(recipeId: String) -> Bool {
+        offlineRecipeIds.contains(recipeId)
+    }
+
+    public func saveRecipeOffline(slug: String) async {
+        isSavingOffline = true
+        do {
+            let recipe = try await MealieAPI.shared.getRecipe(slug: slug)
+            var imageData: Data? = nil
+            if let recipeId = recipe.id {
+                let urlString = MealieAPI.shared.recipeImageURL(recipeId: recipeId)
+                if let url = URL(string: urlString) {
+                    imageData = try? await URLSession.shared.data(from: url).0
+                }
+            }
+            OfflineRecipeStore.shared.saveRecipe(recipe, imageData: imageData)
+            if let id = recipe.id {
+                offlineRecipeIds.insert(id)
+            }
+            isSavingOffline = false
+        } catch {
+            logger.error("Failed to save recipe offline: \(error)")
+            isSavingOffline = false
+        }
+    }
+
+    public func removeRecipeOffline(recipeId: String) {
+        OfflineRecipeStore.shared.removeRecipe(id: recipeId)
+        offlineRecipeIds.remove(recipeId)
+    }
+
+    public func toggleOffline(slug: String, recipeId: String) async {
+        if offlineRecipeIds.contains(recipeId) {
+            removeRecipeOffline(recipeId: recipeId)
+        } else {
+            await saveRecipeOffline(slug: slug)
         }
     }
 

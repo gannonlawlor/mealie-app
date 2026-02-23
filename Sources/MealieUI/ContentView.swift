@@ -39,6 +39,7 @@ public struct ContentView: View {
                             } else {
                                 await authVM.loadCurrentUser()
                                 recipeVM.loadFavorites(user: authVM.currentUser)
+                                recipeVM.loadOfflineIds()
                             }
                         }
                 } else {
@@ -50,6 +51,7 @@ public struct ContentView: View {
                             } else {
                                 await authVM.loadCurrentUser()
                                 recipeVM.loadFavorites(user: authVM.currentUser)
+                                recipeVM.loadOfflineIds()
                             }
                         }
                 }

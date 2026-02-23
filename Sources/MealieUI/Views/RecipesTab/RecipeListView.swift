@@ -66,14 +66,38 @@ struct RecipeListView: View {
             } else {
                 ForEach(recipeVM.recipes) { recipe in
                     NavigationLink(value: recipe) {
-                        RecipeRowView(recipe: recipe, isLocalMode: recipeVM.isLocalMode)
+                        RecipeRowView(
+                            recipe: recipe,
+                            isLocalMode: recipeVM.isLocalMode,
+                            isSavedOffline: !recipeVM.isLocalMode && recipeVM.isOffline(recipeId: recipe.id ?? "")
+                        )
                     }
-                }
-                .onDelete { offsets in
-                    Task {
-                        for index in offsets {
-                            if let slug = recipeVM.recipes[index].slug {
-                                await recipeVM.deleteRecipe(slug: slug)
+                    .swipeActions(edge: .leading) {
+                        if let slug = recipe.slug {
+                            Button {
+                                let userId = AuthService.shared.savedUserId ?? ""
+                                Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
+                            } label: {
+                                Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.slash" : "heart")
+                            }
+                            .tint(.orange)
+                        }
+                    }
+                    .swipeActions(edge: .trailing) {
+                        if let slug = recipe.slug {
+                            Button(role: .destructive) {
+                                Task { await recipeVM.deleteRecipe(slug: slug) }
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+
+                            if !recipeVM.isLocalMode, let recipeId = recipe.id {
+                                Button {
+                                    Task { await recipeVM.toggleOffline(slug: slug, recipeId: recipeId) }
+                                } label: {
+                                    Image(systemName: recipeVM.isOffline(recipeId: recipeId) ? "trash.circle" : "arrow.down.circle")
+                                }
+                                .tint(recipeVM.isOffline(recipeId: recipeId) ? .red : .blue)
                             }
                         }
                     }
@@ -97,6 +121,7 @@ struct RecipeListView: View {
 struct RecipeRowView: View {
     let recipe: RecipeSummary
     var isLocalMode: Bool = false
+    var isSavedOffline: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -157,6 +182,12 @@ struct RecipeRowView: View {
             }
 
             Spacer()
+
+            if isSavedOffline {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
 
             if let rating = recipe.rating, rating > 0 {
                 HStack(spacing: 2) {

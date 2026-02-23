@@ -85,23 +85,46 @@ struct RecipeSplitView: View {
                     Button(action: {
                         selectedSlug = recipe.slug
                     }) {
-                        RecipeRowView(recipe: recipe, isLocalMode: recipeVM.isLocalMode)
+                        RecipeRowView(
+                            recipe: recipe,
+                            isLocalMode: recipeVM.isLocalMode,
+                            isSavedOffline: !recipeVM.isLocalMode && recipeVM.isOffline(recipeId: recipe.id ?? "")
+                        )
                     }
                     .listRowBackground(
                         selectedSlug == recipe.slug
                             ? Color.accentColor.opacity(0.12)
                             : Color.clear
                     )
-                }
-                .onDelete { offsets in
-                    Task {
-                        for index in offsets {
-                            let slug = recipeVM.recipes[index].slug
-                            if slug == selectedSlug {
-                                selectedSlug = nil
+                    .swipeActions(edge: .leading) {
+                        if let slug = recipe.slug {
+                            Button {
+                                let userId = AuthService.shared.savedUserId ?? ""
+                                Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
+                            } label: {
+                                Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.slash" : "heart")
                             }
-                            if let slug = slug {
-                                await recipeVM.deleteRecipe(slug: slug)
+                            .tint(.orange)
+                        }
+                    }
+                    .swipeActions(edge: .trailing) {
+                        if let slug = recipe.slug {
+                            Button(role: .destructive) {
+                                Task {
+                                    if slug == selectedSlug { selectedSlug = nil }
+                                    await recipeVM.deleteRecipe(slug: slug)
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+
+                            if !recipeVM.isLocalMode, let recipeId = recipe.id {
+                                Button {
+                                    Task { await recipeVM.toggleOffline(slug: slug, recipeId: recipeId) }
+                                } label: {
+                                    Image(systemName: recipeVM.isOffline(recipeId: recipeId) ? "trash.circle" : "arrow.down.circle")
+                                }
+                                .tint(recipeVM.isOffline(recipeId: recipeId) ? .red : .blue)
                             }
                         }
                     }
