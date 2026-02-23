@@ -146,6 +146,7 @@ struct RecipeSplitView: View {
                             ? Color.accentColor.opacity(0.12)
                             : Color.clear
                     )
+                    #if !os(Android)
                     .swipeActions(edge: .leading) {
                         if let slug = recipe.slug {
                             Button {
@@ -178,6 +179,7 @@ struct RecipeSplitView: View {
                             }
                         }
                     }
+                    #endif
                 }
 
                 if recipeVM.currentPage < recipeVM.totalPages {

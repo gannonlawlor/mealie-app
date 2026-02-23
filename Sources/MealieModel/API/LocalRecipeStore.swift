@@ -100,7 +100,7 @@ public class LocalRecipeStore: @unchecked Sendable {
     private let favoritesKey = "mealie_local_favorites"
 
     public func loadFavorites() -> Set<String> {
-        let array = UserDefaults.standard.stringArray(forKey: favoritesKey) ?? []
+        let array = (UserDefaults.standard.object(forKey: favoritesKey) as? [String]) ?? []
         return Set(array)
     }
 

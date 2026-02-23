@@ -120,6 +120,7 @@ struct RecipeListView: View {
                             isSavedOffline: !recipeVM.isLocalMode && recipeVM.isOffline(recipeId: recipe.id ?? "")
                         )
                     }
+                    #if !os(Android)
                     .swipeActions(edge: .leading) {
                         if let slug = recipe.slug {
                             Button {
@@ -149,6 +150,7 @@ struct RecipeListView: View {
                             }
                         }
                     }
+                    #endif
                 }
 
                 if recipeVM.currentPage < recipeVM.totalPages {

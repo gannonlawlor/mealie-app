@@ -103,7 +103,7 @@ public class OfflineRecipeStore: @unchecked Sendable {
     }
 
     public func savedRecipeIds() -> Set<String> {
-        let array = UserDefaults.standard.stringArray(forKey: idsKey) ?? []
+        let array = (UserDefaults.standard.object(forKey: idsKey) as? [String]) ?? []
         return Set(array)
     }
 
