@@ -6,6 +6,8 @@ import skip.foundation.*
 import skip.ui.*
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -38,9 +40,26 @@ open class MainActivity: AppCompatActivity {
     constructor() {
     }
 
+    private fun convertSendIntent(intent: Intent): Intent {
+        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (sharedText != null) {
+                // Extract URL from shared text (may contain extra text around it)
+                val urlPattern = java.util.regex.Pattern.compile("https?://\\S+")
+                val matcher = urlPattern.matcher(sharedText)
+                val url = if (matcher.find()) matcher.group() else sharedText
+                intent.action = Intent.ACTION_VIEW
+                intent.data = Uri.parse(url)
+                logger.info("converted SEND intent to VIEW: $url")
+            }
+        }
+        return intent
+    }
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         logger.info("starting activity")
+        convertSendIntent(intent)
         UIApplication.launch(this)
         enableEdgeToEdge()
 
@@ -51,6 +70,11 @@ open class MainActivity: AppCompatActivity {
                 SideEffect { saveableStateHolder.removeState(true) }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        convertSendIntent(intent)
+        super.onNewIntent(intent)
     }
 
     override fun onSaveInstanceState(outState: android.os.Bundle): Unit = super.onSaveInstanceState(outState)

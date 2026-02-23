@@ -60,6 +60,30 @@ public struct ContentView: View {
             }
         }
         .preferredColorScheme(resolvedColorScheme)
+        .onOpenURL { url in
+            guard authVM.isAuthenticated else { return }
+            let recipeURL: String
+            if url.scheme == "mealie" {
+                // iOS: mealie://import?url=<encoded_url>
+                #if os(Android)
+                recipeURL = ""
+                #else
+                guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                      let queryURL = components.queryItems?.first(where: { $0.name == "url" })?.value else {
+                    return
+                }
+                recipeURL = queryURL
+                #endif
+            } else {
+                // Android: raw recipe URL via ACTION_VIEW
+                recipeURL = url.absoluteString
+            }
+            guard !recipeURL.isEmpty else { return }
+            recipeVM.importURL = recipeURL
+            Task {
+                await recipeVM.importFromURL()
+            }
+        }
     }
 
     var mainTabView: some View {
