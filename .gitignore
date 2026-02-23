@@ -18,3 +18,4 @@ Android/.gradle/
 Android/build/
 .DS_Store
 Thumbs.db
+build/

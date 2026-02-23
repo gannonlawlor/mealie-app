@@ -127,7 +127,6 @@ struct RecipeDetailView: View {
                         }
                         .frame(height: 250)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
                     } else if !recipeVM.isLocalMode {
                         if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
                             AsyncImage(url: URL(fileURLWithPath: offlinePath)) { image in
@@ -146,7 +145,6 @@ struct RecipeDetailView: View {
                             }
                             .frame(height: 250)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .padding(.horizontal)
                         } else {
                             AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
                                 image
@@ -164,7 +162,6 @@ struct RecipeDetailView: View {
                             }
                             .frame(height: 250)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .padding(.horizontal)
                         }
                     }
                 }
@@ -174,7 +171,6 @@ struct RecipeDetailView: View {
                     Text(description)
                         .font(.body)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal)
                 }
 
                 // Time & Yield Info
@@ -200,6 +196,7 @@ struct RecipeDetailView: View {
 
                 Spacer().frame(height: 32)
             }
+            .padding(.horizontal)
         }
     }
 
@@ -230,7 +227,6 @@ struct RecipeDetailView: View {
                             .cornerRadius(8)
                         }
                     }
-                    .padding(.horizontal)
                 }
             }
         }
@@ -254,7 +250,6 @@ struct RecipeDetailView: View {
                                 .cornerRadius(16)
                         }
                     }
-                    .padding(.horizontal)
                 }
             }
         }
@@ -265,7 +260,6 @@ struct RecipeDetailView: View {
             Text("Ingredients")
                 .font(.title2)
                 .bold()
-                .padding(.horizontal)
 
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(ingredients.enumerated()), id: \.offset) { _, ingredient in
@@ -285,7 +279,6 @@ struct RecipeDetailView: View {
                     }
                 }
             }
-            .padding(.horizontal)
         }
     }
 
@@ -294,7 +287,6 @@ struct RecipeDetailView: View {
             Text("Instructions")
                 .font(.title2)
                 .bold()
-                .padding(.horizontal)
 
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
@@ -319,7 +311,6 @@ struct RecipeDetailView: View {
                     }
                 }
             }
-            .padding(.horizontal)
         }
     }
 
@@ -339,7 +330,6 @@ struct RecipeDetailView: View {
                     Text("Nutrition")
                         .font(.title2)
                         .bold()
-                        .padding(.horizontal)
 
                     LazyVGrid(columns: [
                         GridItem(.flexible()),
@@ -361,7 +351,6 @@ struct RecipeDetailView: View {
                             .cornerRadius(8)
                         }
                     }
-                    .padding(.horizontal)
                 }
             }
         }
