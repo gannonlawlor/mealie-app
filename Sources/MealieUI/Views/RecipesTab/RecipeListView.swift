@@ -289,7 +289,7 @@ struct ImportRecipeView: View {
                 Button(action: {
                     Task {
                         await recipeVM.importFromURL()
-                        if recipeVM.importMessage.contains("successfully") {
+                        if recipeVM.importMessage.contains("successfully") && !recipeVM.showDuplicateAlert {
                             isPresented = false
                         }
                     }
@@ -380,6 +380,31 @@ struct ImportRecipeView: View {
                 if !newValue {
                     // Close import sheet after edit is dismissed
                     isPresented = false
+                }
+            }
+            .alert("Recipe Already Exists", isPresented: $recipeVM.showDuplicateAlert) {
+                Button("Update Existing") {
+                    Task {
+                        await recipeVM.confirmImportUpdate()
+                        isPresented = false
+                    }
+                }
+                Button("Import Anyway") {
+                    Task {
+                        await recipeVM.confirmImportNew()
+                        isPresented = false
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    recipeVM.clearDuplicateState()
+                }
+            } message: {
+                if let name = recipeVM.duplicateRecipe?.name {
+                    if recipeVM.duplicateMatchedByURL {
+                        Text("A recipe imported from this URL already exists: \"\(name)\". Would you like to update it or import a new copy?")
+                    } else {
+                        Text("A recipe with the same name already exists: \"\(name)\". Would you like to update it or import a new copy?")
+                    }
                 }
             }
         }

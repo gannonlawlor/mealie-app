@@ -120,6 +120,17 @@ public class LocalRecipeStore: @unchecked Sendable {
         saveFavorites(favorites)
     }
 
+    // MARK: - Duplicate Detection
+
+    public func findRecipeByOrgURL(_ url: String) -> Recipe? {
+        loadAllRecipes().first { $0.orgURL == url }
+    }
+
+    public func findRecipesByName(_ name: String) -> [Recipe] {
+        let query = name.lowercased()
+        return loadAllRecipes().filter { ($0.name ?? "").lowercased() == query }
+    }
+
     // MARK: - Helpers
 
     public func generateSlug(from name: String) -> String {

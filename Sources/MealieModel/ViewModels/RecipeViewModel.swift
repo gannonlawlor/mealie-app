@@ -26,6 +26,12 @@ private let logger = Log(category: "Recipes")
     // Local mode
     public var isLocalMode: Bool = false
 
+    // Duplicate detection
+    public var duplicateRecipe: Recipe? = nil
+    public var showDuplicateAlert: Bool = false
+    public var pendingImportRecipe: Recipe? = nil
+    public var duplicateMatchedByURL: Bool = false
+
     // Offline
     public var offlineRecipeIds: Set<String> = []
     public var isSavingOffline: Bool = false
@@ -221,6 +227,25 @@ private let logger = Log(category: "Recipes")
         if isLocalMode {
             do {
                 let recipe = try await RecipeURLParser.shared.parseRecipe(from: importURL)
+
+                // Check for duplicates
+                if let existing = LocalRecipeStore.shared.findRecipeByOrgURL(importURL) {
+                    duplicateRecipe = existing
+                    pendingImportRecipe = recipe
+                    duplicateMatchedByURL = true
+                    showDuplicateAlert = true
+                    isImporting = false
+                    return
+                }
+                if let name = recipe.name, let existing = LocalRecipeStore.shared.findRecipesByName(name).first {
+                    duplicateRecipe = existing
+                    pendingImportRecipe = recipe
+                    duplicateMatchedByURL = false
+                    showDuplicateAlert = true
+                    isImporting = false
+                    return
+                }
+
                 LocalRecipeStore.shared.saveRecipe(recipe)
                 importMessage = "Recipe imported successfully!"
                 importURL = ""
@@ -259,6 +284,44 @@ private let logger = Log(category: "Recipes")
             logger.error("Failed to import recipe: \(error)")
             isImporting = false
         }
+    }
+
+    public func confirmImportNew() async {
+        guard let recipe = pendingImportRecipe else { return }
+        LocalRecipeStore.shared.saveRecipe(recipe)
+        importMessage = "Recipe imported successfully!"
+        importURL = ""
+        clearDuplicateState()
+        await loadRecipes(reset: true)
+    }
+
+    public func confirmImportUpdate() async {
+        guard let pending = pendingImportRecipe, let existing = duplicateRecipe else { return }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let updated = Recipe(
+            id: existing.id, slug: existing.slug,
+            name: pending.name, description: pending.description, image: pending.image,
+            recipeCategory: pending.recipeCategory, tags: pending.tags, tools: pending.tools,
+            rating: pending.rating, recipeYield: pending.recipeYield,
+            recipeIngredient: pending.recipeIngredient, recipeInstructions: pending.recipeInstructions,
+            totalTime: pending.totalTime, prepTime: pending.prepTime, performTime: pending.performTime,
+            nutrition: pending.nutrition, settings: pending.settings,
+            dateAdded: existing.dateAdded, dateUpdated: now,
+            createdAt: existing.createdAt, updatedAt: now,
+            orgURL: pending.orgURL, extras: pending.extras
+        )
+        LocalRecipeStore.shared.saveRecipe(updated)
+        importMessage = "Recipe updated successfully!"
+        importURL = ""
+        clearDuplicateState()
+        await loadRecipes(reset: true)
+    }
+
+    public func clearDuplicateState() {
+        duplicateRecipe = nil
+        pendingImportRecipe = nil
+        showDuplicateAlert = false
+        duplicateMatchedByURL = false
     }
 
     public func search() async {
