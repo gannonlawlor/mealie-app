@@ -4,6 +4,7 @@ set -euo pipefail
 SKIP_ENV="Skip.env"
 PBXPROJ="Darwin/MealieApp.xcodeproj/project.pbxproj"
 SCHEME="MealieApp App"
+BUMP_TYPE="${1:-minor}"
 
 # Read current version from Skip.env
 CURRENT_VERSION=$(grep '^MARKETING_VERSION' "$SKIP_ENV" | sed 's/.*= *//')
@@ -12,9 +13,18 @@ CURRENT_BUILD=$(grep '^CURRENT_PROJECT_VERSION' "$SKIP_ENV" | sed 's/.*= *//')
 # Parse major.minor.patch
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
-# Bump minor version, reset patch
-NEW_MINOR=$((MINOR + 1))
-NEW_VERSION="${MAJOR}.${NEW_MINOR}.0"
+case "$BUMP_TYPE" in
+    patch)
+        NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+        ;;
+    minor)
+        NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+        ;;
+    *)
+        echo "Usage: $0 [minor|patch]"
+        exit 1
+        ;;
+esac
 NEW_BUILD=$((CURRENT_BUILD + 1))
 
 echo "Version: $CURRENT_VERSION → $NEW_VERSION"
