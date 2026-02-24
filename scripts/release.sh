@@ -57,6 +57,7 @@ xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "$SCHEME" \
     -archivePath "$ARCHIVE_PATH" \
     archive SKIP_ACTION=none \
     CODE_SIGN_STYLE=Automatic \
+    -allowProvisioningUpdates \
     | tail -5
 
 # 4. Export and upload to TestFlight
