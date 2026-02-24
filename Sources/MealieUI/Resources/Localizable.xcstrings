@@ -175,6 +175,9 @@
     "New Shopping List" : {
 
     },
+    "No favorite recipes" : {
+
+    },
     "No items in this list" : {
 
     },
@@ -308,6 +311,9 @@
 
     },
     "Version" : {
+
+    },
+    "View Original Recipe ↗" : {
 
     },
     "Yield (e.g. 4 servings)" : {
