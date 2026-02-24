@@ -15,6 +15,9 @@ public struct ContentView: View {
     @State var selectedTab: AppTab = .recipes
     @State var appTheme: AppTheme = AppSettings.shared.theme
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    #if !os(Android)
+    @Environment(\.scenePhase) var scenePhase
+    #endif
 
     public init() {
     }
@@ -84,7 +87,34 @@ public struct ContentView: View {
                 await recipeVM.importFromURL()
             }
         }
+        #if !os(Android)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                checkPendingShareImport()
+            }
+        }
+        #endif
     }
+
+    #if !os(Android)
+    private func checkPendingShareImport() {
+        guard authVM.isAuthenticated else { return }
+        let appGroupID = "group.com.jackabee.mealie"
+        let pendingURLKey = "pendingImportURL"
+        guard let defaults = UserDefaults(suiteName: appGroupID),
+              let urlString = defaults.string(forKey: pendingURLKey), !urlString.isEmpty else {
+            return
+        }
+        // Clear immediately to prevent re-processing
+        defaults.removeObject(forKey: pendingURLKey)
+        defaults.synchronize()
+        recipeVM.importURL = urlString
+        selectedTab = .recipes
+        Task {
+            await recipeVM.importFromURL()
+        }
+    }
+    #endif
 
     var mainTabView: some View {
         TabView(selection: $selectedTab) {

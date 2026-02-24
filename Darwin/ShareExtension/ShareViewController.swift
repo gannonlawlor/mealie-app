@@ -10,6 +10,9 @@ import UniformTypeIdentifiers
 
 class ShareViewController: UIViewController {
 
+    private let appGroupID = "group.com.jackabee.mealie"
+    private let pendingURLKey = "pendingImportURL"
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         handleSharedContent()
@@ -25,19 +28,23 @@ class ShareViewController: UIViewController {
         for attachment in attachments {
             if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                 attachment.loadItem(forTypeIdentifier: UTType.url.identifier) { [weak self] item, _ in
-                    if let url = item as? URL {
-                        self?.openMainApp(with: url)
-                    } else {
-                        self?.completeRequest()
+                    DispatchQueue.main.async {
+                        if let url = item as? URL {
+                            self?.saveAndDismiss(url: url)
+                        } else {
+                            self?.completeRequest()
+                        }
                     }
                 }
                 return
             } else if attachment.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                 attachment.loadItem(forTypeIdentifier: UTType.plainText.identifier) { [weak self] item, _ in
-                    if let text = item as? String, let url = URL(string: text), url.scheme?.hasPrefix("http") == true {
-                        self?.openMainApp(with: url)
-                    } else {
-                        self?.completeRequest()
+                    DispatchQueue.main.async {
+                        if let text = item as? String, let url = URL(string: text), url.scheme?.hasPrefix("http") == true {
+                            self?.saveAndDismiss(url: url)
+                        } else {
+                            self?.completeRequest()
+                        }
                     }
                 }
                 return
@@ -47,27 +54,13 @@ class ShareViewController: UIViewController {
         completeRequest()
     }
 
-    private func openMainApp(with url: URL) {
-        guard let encoded = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let appURL = URL(string: "mealie://import?url=\(encoded)") else {
-            completeRequest()
-            return
+    private func saveAndDismiss(url: URL) {
+        // Save URL to shared App Group UserDefaults for the main app to pick up
+        if let defaults = UserDefaults(suiteName: appGroupID) {
+            defaults.set(url.absoluteString, forKey: pendingURLKey)
+            defaults.synchronize()
         }
-
-        // Use the responder chain to open the URL
-        let selector = sel_registerName("openURL:")
-        var responder: UIResponder? = self
-        while let r = responder {
-            if r.responds(to: selector) {
-                r.perform(selector, with: appURL)
-                break
-            }
-            responder = r.next
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.completeRequest()
-        }
+        completeRequest()
     }
 
     private func completeRequest() {

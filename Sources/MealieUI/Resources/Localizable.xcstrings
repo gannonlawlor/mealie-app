@@ -19,6 +19,12 @@
     "1.0.0" : {
 
     },
+    "A recipe imported from this URL already exists: \"%@\". Would you like to update it or import a new copy?" : {
+
+    },
+    "A recipe with the same name already exists: \"%@\". Would you like to update it or import a new copy?" : {
+
+    },
     "About" : {
 
     },
@@ -29,6 +35,9 @@
 
     },
     "Add Meal - %@" : {
+
+    },
+    "Add Recipe" : {
 
     },
     "Add Step" : {
@@ -52,6 +61,9 @@
     "Cancel" : {
 
     },
+    "Categories" : {
+
+    },
     "Change Server" : {
 
     },
@@ -67,10 +79,19 @@
     "Connected - v%@" : {
 
     },
+    "Continue" : {
+
+    },
     "Cook Time" : {
 
     },
     "Create" : {
+
+    },
+    "Create New Recipe" : {
+
+    },
+    "Create Recipe" : {
 
     },
     "Dark" : {
@@ -103,6 +124,9 @@
     "Import a Recipe" : {
 
     },
+    "Import Anyway" : {
+
+    },
     "Import Recipe" : {
 
     },
@@ -115,6 +139,9 @@
     "Instructions" : {
 
     },
+    "Keep Screen Awake" : {
+
+    },
     "Light" : {
 
     },
@@ -124,6 +151,12 @@
     "Loading recipe..." : {
 
     },
+    "Local" : {
+
+    },
+    "Local Mode" : {
+
+    },
     "Meal Plan" : {
 
     },
@@ -131,6 +164,9 @@
 
     },
     "Mealie" : {
+
+    },
+    "Mode" : {
 
     },
     "Name" : {
@@ -154,7 +190,13 @@
     "Nutrition" : {
 
     },
+    "or" : {
+
+    },
     "Password" : {
+
+    },
+    "Paste a URL and the recipe will be parsed and saved locally." : {
 
     },
     "Paste a URL from a recipe website and Mealie will automatically import it." : {
@@ -163,7 +205,16 @@
     "Prep Time" : {
 
     },
+    "Prevents the screen from dimming while viewing a recipe." : {
+
+    },
     "Profile" : {
+
+    },
+    "Recipe Already Exists" : {
+
+    },
+    "Recipe Name" : {
 
     },
     "Recipe not found" : {
@@ -175,10 +226,16 @@
     "Recipes" : {
 
     },
+    "Recipes saved on device" : {
+
+    },
     "Refresh Profile" : {
 
     },
     "Save" : {
+
+    },
+    "Save recipes locally on your device. You can connect to a server later." : {
 
     },
     "Search recipes..." : {
@@ -220,6 +277,9 @@
     "System" : {
 
     },
+    "Tags" : {
+
+    },
     "Theme" : {
 
     },
@@ -235,7 +295,13 @@
     "Total Time" : {
 
     },
+    "Update Existing" : {
+
+    },
     "URL" : {
+
+    },
+    "Use Without Server" : {
 
     },
     "v%@" : {
@@ -245,6 +311,9 @@
 
     },
     "Yield (e.g. 4 servings)" : {
+
+    },
+    "You'll be taken to the login screen. Your local recipes will be preserved." : {
 
     },
     "Your Recipe Manager" : {
