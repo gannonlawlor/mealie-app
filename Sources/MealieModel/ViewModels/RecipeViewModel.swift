@@ -69,8 +69,6 @@ private let logger = Log(category: "Recipes")
                 if let cached = CacheService.shared.loadRecipeList() {
                     recipes = cached
                 }
-            } else {
-                recipes = []
             }
         }
 

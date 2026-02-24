@@ -10,6 +10,14 @@ import MealieModel
 struct RecipeListView: View {
     @Bindable var recipeVM: RecipeViewModel
     @State var showImportSheet = false
+    @State var showFavoritesOnly: Bool = false
+
+    var displayedRecipes: [RecipeSummary] {
+        if showFavoritesOnly {
+            return recipeVM.recipes.filter { recipeVM.isFavorite(slug: $0.slug ?? "") }
+        }
+        return recipeVM.recipes
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,9 +27,13 @@ struct RecipeListView: View {
                 }
                 .padding(.top, 4)
             }
+            #if os(Android)
             if !recipeVM.categories.isEmpty || !recipeVM.tags.isEmpty {
                 filterChips
             }
+            #else
+            activeFilterChip
+            #endif
             recipeList
         }
         .navigationTitle("Recipes")
@@ -29,6 +41,38 @@ struct RecipeListView: View {
             RecipeDetailView(recipeVM: recipeVM, slug: recipe.slug ?? "")
         }
         .searchable(text: $recipeVM.searchText, prompt: "Search recipes...")
+        #if !os(Android)
+        .searchSuggestions {
+            if recipeVM.searchText.isEmpty || !filteredCategories.isEmpty || !filteredTags.isEmpty {
+                if !filteredCategories.isEmpty {
+                    Section("Categories") {
+                        ForEach(filteredCategories) { cat in
+                            Button(action: {
+                                recipeVM.selectedCategory = cat
+                                recipeVM.searchText = ""
+                                Task { await recipeVM.loadRecipes(reset: true) }
+                            }) {
+                                Label(cat.name ?? "", systemImage: "folder")
+                            }
+                        }
+                    }
+                }
+                if !filteredTags.isEmpty {
+                    Section("Tags") {
+                        ForEach(filteredTags) { tag in
+                            Button(action: {
+                                recipeVM.selectedTag = tag
+                                recipeVM.searchText = ""
+                                Task { await recipeVM.loadRecipes(reset: true) }
+                            }) {
+                                Label(tag.name ?? "", systemImage: "tag")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #endif
         .onSubmit(of: .search) {
             Task { await recipeVM.search() }
         }
@@ -37,8 +81,14 @@ struct RecipeListView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: { showImportSheet = true }) {
-                    Image(systemName: "plus")
+                HStack(spacing: 12) {
+                    Button(action: { showFavoritesOnly.toggle() }) {
+                        Image(systemName: showFavoritesOnly ? "heart.fill" : "heart")
+                            .foregroundStyle(showFavoritesOnly ? Color.accentColor : .primary)
+                    }
+                    Button(action: { showImportSheet = true }) {
+                        Image(systemName: "plus")
+                    }
                 }
             }
         }
@@ -53,6 +103,66 @@ struct RecipeListView: View {
             }
         }
     }
+
+    #if !os(Android)
+    var filteredCategories: [RecipeCategory] {
+        if recipeVM.searchText.isEmpty { return recipeVM.categories }
+        let query = recipeVM.searchText.lowercased()
+        return recipeVM.categories.filter { ($0.name ?? "").lowercased().contains(query) }
+    }
+
+    var filteredTags: [RecipeTag] {
+        if recipeVM.searchText.isEmpty { return recipeVM.tags }
+        let query = recipeVM.searchText.lowercased()
+        return recipeVM.tags.filter { ($0.name ?? "").lowercased().contains(query) }
+    }
+
+    var activeFilterChip: some View {
+        Group {
+            if let cat = recipeVM.selectedCategory {
+                HStack {
+                    Button(action: {
+                        recipeVM.selectedCategory = nil
+                        Task { await recipeVM.loadRecipes(reset: true) }
+                    }) {
+                        Label(cat.name ?? "", systemImage: "folder")
+                            .font(.subheadline)
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.accentColor.opacity(0.12))
+                    .foregroundStyle(Color.accentColor)
+                    .cornerRadius(16)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+            } else if let tag = recipeVM.selectedTag {
+                HStack {
+                    Button(action: {
+                        recipeVM.selectedTag = nil
+                        Task { await recipeVM.loadRecipes(reset: true) }
+                    }) {
+                        Label(tag.name ?? "", systemImage: "tag")
+                            .font(.subheadline)
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.accentColor.opacity(0.12))
+                    .foregroundStyle(Color.accentColor)
+                    .cornerRadius(16)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+            }
+        }
+    }
+    #endif
 
     var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -107,12 +217,12 @@ struct RecipeListView: View {
                     ProgressView()
                     Spacer()
                 }
-            } else if recipeVM.recipes.isEmpty {
-                Text("No recipes found")
+            } else if displayedRecipes.isEmpty {
+                Text(showFavoritesOnly ? "No favorite recipes" : "No recipes found")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             } else {
-                ForEach(recipeVM.recipes) { recipe in
+                ForEach(displayedRecipes) { recipe in
                     NavigationLink(value: recipe) {
                         RecipeRowView(
                             recipe: recipe,

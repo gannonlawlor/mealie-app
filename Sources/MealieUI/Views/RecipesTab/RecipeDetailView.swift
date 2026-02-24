@@ -36,7 +36,7 @@ struct RecipeDetailView: View {
                         Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
                     }) {
                         Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.fill" : "heart")
-                            .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .secondary)
+                            .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .primary)
                     }
 
                     if !recipeVM.isLocalMode, let recipeId = recipeVM.selectedRecipe?.id {
@@ -47,7 +47,7 @@ struct RecipeDetailView: View {
                                 ProgressView()
                             } else {
                                 Image(systemName: recipeVM.isOffline(recipeId: recipeId) ? "arrow.down.circle.fill" : "arrow.down.circle")
-                                    .foregroundStyle(recipeVM.isOffline(recipeId: recipeId) ? .green : .secondary)
+                                    .foregroundStyle(recipeVM.isOffline(recipeId: recipeId) ? .green : .primary)
                             }
                         }
                         .disabled(recipeVM.isSavingOffline)
@@ -171,6 +171,13 @@ struct RecipeDetailView: View {
                     Text(description)
                         .font(.body)
                         .foregroundStyle(.secondary)
+                }
+
+                // Original Recipe Link
+                if let orgURL = recipe.orgURL, !orgURL.isEmpty, let url = URL(string: orgURL) {
+                    Link("View Original Recipe \u{2197}", destination: url)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
                 }
 
                 // Time & Yield Info
