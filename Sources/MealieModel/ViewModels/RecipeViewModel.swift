@@ -17,6 +17,7 @@ private let logger = Log(category: "Recipes")
     public var currentPage: Int = 1
     public var totalPages: Int = 1
     public var errorMessage: String = ""
+    public var errorDetail: String = ""
 
     // Import
     public var importURL: String = ""
@@ -74,6 +75,7 @@ private let logger = Log(category: "Recipes")
 
         isLoading = true
         errorMessage = ""
+        errorDetail = ""
 
         do {
             let response = try await MealieAPI.shared.getRecipes(
@@ -96,6 +98,7 @@ private let logger = Log(category: "Recipes")
             isLoading = false
         } catch {
             errorMessage = "Failed to load recipes."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to load recipes: \(error)")
             isLoading = false
         }
@@ -132,6 +135,7 @@ private let logger = Log(category: "Recipes")
                     selectedRecipe = offline
                 } else {
                     errorMessage = "Failed to load recipe."
+                    errorDetail = AppEnvironment.errorDetail(error)
                 }
             }
             logger.error("Failed to load recipe detail: \(error)")
@@ -212,6 +216,7 @@ private let logger = Log(category: "Recipes")
             return true
         } catch {
             errorMessage = "Failed to delete recipe."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to delete recipe: \(error)")
             return false
         }
@@ -378,6 +383,7 @@ private let logger = Log(category: "Recipes")
                 favoriteRecipes.remove(slug)
             }
             errorMessage = "Failed to update favorite."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to toggle favorite: \(error)")
         }
     }
@@ -398,6 +404,7 @@ private let logger = Log(category: "Recipes")
             return true
         } catch {
             errorMessage = "Failed to update recipe."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to update recipe: \(error)")
             return false
         }

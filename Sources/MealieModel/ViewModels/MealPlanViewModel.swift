@@ -10,6 +10,7 @@ private let logger = Log(category: "MealPlan")
     public var isLoading: Bool = false
     public var currentWeekStart: Date = MealPlanViewModel.startOfWeek(for: Date())
     public var errorMessage: String = ""
+    public var errorDetail: String = ""
 
     public init() {}
 
@@ -52,6 +53,7 @@ private let logger = Log(category: "MealPlan")
 
         isLoading = weekEntries.isEmpty
         errorMessage = ""
+        errorDetail = ""
 
         do {
             let response = try await MealieAPI.shared.getMealPlans(startDate: startDate, endDate: endDate)
@@ -61,6 +63,7 @@ private let logger = Log(category: "MealPlan")
         } catch {
             if weekEntries.isEmpty {
                 errorMessage = "Failed to load meal plan."
+                errorDetail = AppEnvironment.errorDetail(error)
             }
             logger.error("Failed to load meal plans: \(error)")
             isLoading = false
@@ -85,6 +88,7 @@ private let logger = Log(category: "MealPlan")
             todayEntries = try await MealieAPI.shared.getTodayMealPlan()
         } catch {
             errorMessage = "Failed to load today's meal plan."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to load today's meal plan: \(error)")
         }
     }
@@ -114,6 +118,7 @@ private let logger = Log(category: "MealPlan")
             await loadWeek()
         } catch {
             errorMessage = "Failed to add meal plan."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to create meal plan: \(error)")
         }
     }
@@ -124,6 +129,7 @@ private let logger = Log(category: "MealPlan")
             await loadWeek()
         } catch {
             errorMessage = "Failed to delete meal plan."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to delete meal plan: \(error)")
         }
     }

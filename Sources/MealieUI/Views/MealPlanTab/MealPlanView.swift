@@ -17,8 +17,9 @@ struct MealPlanView: View {
     var body: some View {
         VStack(spacing: 0) {
             if !mealPlanVM.errorMessage.isEmpty {
-                ErrorBanner(message: mealPlanVM.errorMessage) {
+                ErrorBanner(message: mealPlanVM.errorMessage, detail: mealPlanVM.errorDetail) {
                     mealPlanVM.errorMessage = ""
+                    mealPlanVM.errorDetail = ""
                 }
                 .padding(.top, 4)
             }

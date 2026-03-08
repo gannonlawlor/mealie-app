@@ -22,8 +22,9 @@ struct RecipeListView: View {
     var body: some View {
         VStack(spacing: 0) {
             if !recipeVM.errorMessage.isEmpty {
-                ErrorBanner(message: recipeVM.errorMessage) {
+                ErrorBanner(message: recipeVM.errorMessage, detail: recipeVM.errorDetail) {
                     recipeVM.errorMessage = ""
+                    recipeVM.errorDetail = ""
                 }
                 .padding(.top, 4)
             }

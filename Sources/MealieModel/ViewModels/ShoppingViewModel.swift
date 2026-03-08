@@ -9,6 +9,7 @@ private let logger = Log(category: "Shopping")
     public var selectedList: ShoppingList? = nil
     public var isLoading: Bool = false
     public var errorMessage: String = ""
+    public var errorDetail: String = ""
     public var newItemNote: String = ""
 
     public init() {}
@@ -20,6 +21,7 @@ private let logger = Log(category: "Shopping")
 
         isLoading = shoppingLists.isEmpty
         errorMessage = ""
+        errorDetail = ""
 
         do {
             let response = try await MealieAPI.shared.getShoppingLists()
@@ -29,6 +31,7 @@ private let logger = Log(category: "Shopping")
         } catch {
             if shoppingLists.isEmpty {
                 errorMessage = "Failed to load shopping lists."
+                errorDetail = AppEnvironment.errorDetail(error)
             }
             logger.error("Failed to load shopping lists: \(error)")
             isLoading = false
@@ -49,6 +52,7 @@ private let logger = Log(category: "Shopping")
         } catch {
             if selectedList == nil {
                 errorMessage = "Failed to load shopping list."
+                errorDetail = AppEnvironment.errorDetail(error)
             }
             logger.error("Failed to load shopping list: \(error)")
             isLoading = false
@@ -61,6 +65,7 @@ private let logger = Log(category: "Shopping")
             shoppingLists.append(newList)
         } catch {
             errorMessage = "Failed to create shopping list."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to create shopping list: \(error)")
         }
     }
@@ -71,6 +76,7 @@ private let logger = Log(category: "Shopping")
             shoppingLists.removeAll { $0.id == id }
         } catch {
             errorMessage = "Failed to delete shopping list."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to delete shopping list: \(error)")
         }
     }
@@ -89,6 +95,7 @@ private let logger = Log(category: "Shopping")
             await loadShoppingList(id: listId)
         } catch {
             errorMessage = "Failed to add item."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to add item: \(error)")
         }
     }
@@ -102,6 +109,7 @@ private let logger = Log(category: "Shopping")
             }
         } catch {
             errorMessage = "Failed to delete item."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to delete item: \(error)")
         }
     }
@@ -117,6 +125,7 @@ private let logger = Log(category: "Shopping")
             }
         } catch {
             errorMessage = "Failed to update item."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to toggle item: \(error)")
         }
     }
@@ -127,6 +136,7 @@ private let logger = Log(category: "Shopping")
             await loadShoppingList(id: listId)
         } catch {
             errorMessage = "Failed to add recipe ingredients."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to add recipe ingredients: \(error)")
         }
     }

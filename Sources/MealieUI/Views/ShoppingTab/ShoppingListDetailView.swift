@@ -23,8 +23,9 @@ struct ShoppingListDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             if !shoppingVM.errorMessage.isEmpty {
-                ErrorBanner(message: shoppingVM.errorMessage) {
+                ErrorBanner(message: shoppingVM.errorMessage, detail: shoppingVM.errorDetail) {
                     shoppingVM.errorMessage = ""
+                    shoppingVM.errorDetail = ""
                 }
                 .padding(.top, 4)
             }
