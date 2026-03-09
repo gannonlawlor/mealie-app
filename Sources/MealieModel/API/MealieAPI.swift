@@ -26,6 +26,9 @@ public class MealieAPI: @unchecked Sendable {
     var baseURL: String = ""
     var accessToken: String = ""
 
+    /// Called on the main actor when a 401 persists after token refresh fails.
+    public var onUnauthorized: (@MainActor @Sendable () -> Void)?
+
     private init() {}
 
     public func configure(baseURL: String, token: String = "") {
@@ -108,6 +111,11 @@ public class MealieAPI: @unchecked Sendable {
         return request
     }
 
+    private func notifyUnauthorized() {
+        let callback = onUnauthorized
+        Task { @MainActor in callback?() }
+    }
+
     func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
         logInfo("\(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "")")
 
@@ -124,13 +132,14 @@ public class MealieAPI: @unchecked Sendable {
                 let retryRequest = rebuildRequest(request)
                 let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
                 guard let retryHttp = retryResponse as? HTTPURLResponse else { throw APIError.noData }
-                if retryHttp.statusCode == 401 { throw APIError.unauthorized }
+                if retryHttp.statusCode == 401 { notifyUnauthorized(); throw APIError.unauthorized }
                 guard (200...299).contains(retryHttp.statusCode) else {
                     throw APIError.serverError(retryHttp.statusCode, String(data: retryData, encoding: .utf8) ?? "")
                 }
                 do { return try JSONDecoder().decode(T.self, from: retryData) }
                 catch { throw APIError.decodingError(error) }
             }
+            notifyUnauthorized()
             throw APIError.unauthorized
         }
 
@@ -162,12 +171,13 @@ public class MealieAPI: @unchecked Sendable {
                 let retryRequest = rebuildRequest(request)
                 let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
                 guard let retryHttp = retryResponse as? HTTPURLResponse else { throw APIError.noData }
-                if retryHttp.statusCode == 401 { throw APIError.unauthorized }
+                if retryHttp.statusCode == 401 { notifyUnauthorized(); throw APIError.unauthorized }
                 guard (200...299).contains(retryHttp.statusCode) else {
                     throw APIError.serverError(retryHttp.statusCode, String(data: retryData, encoding: .utf8) ?? "")
                 }
                 return (retryData, retryHttp)
             }
+            notifyUnauthorized()
             throw APIError.unauthorized
         }
 

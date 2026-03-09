@@ -36,6 +36,10 @@ public struct ContentView: View {
                 if horizontalSizeClass == .regular {
                     iPadLayout
                         .task {
+                            let vm = authVM
+                            MealieAPI.shared.onUnauthorized = {
+                                vm.logout()
+                            }
                             recipeVM.isLocalMode = authVM.isLocalMode
                             if authVM.isLocalMode {
                                 recipeVM.loadFavorites(user: nil)
@@ -48,6 +52,10 @@ public struct ContentView: View {
                 } else {
                     mainTabView
                         .task {
+                            let vm = authVM
+                            MealieAPI.shared.onUnauthorized = {
+                                vm.logout()
+                            }
                             recipeVM.isLocalMode = authVM.isLocalMode
                             if authVM.isLocalMode {
                                 recipeVM.loadFavorites(user: nil)
