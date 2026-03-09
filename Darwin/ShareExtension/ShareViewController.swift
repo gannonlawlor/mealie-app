@@ -16,11 +16,40 @@ class ShareViewController: UIViewController {
     private let appGroupID = "group.com.jackabee.mealie"
     private let pendingURLKey = "pendingImportURL"
 
+    private let toastLabel: UILabel = {
+        let label = UILabel()
+        label.textAlignment = .center
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        label.textColor = .white
+        label.numberOfLines = 2
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    private let iconView: UIImageView = {
+        let config = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
+        let iv = UIImageView()
+        iv.tintColor = .white
+        iv.contentMode = .scaleAspectFit
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        return iv
+    }()
+
+    private let toastContainer: UIView = {
+        let v = UIView()
+        v.backgroundColor = UIColor.black.withAlphaComponent(0.85)
+        v.layer.cornerRadius = 16
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.alpha = 0
+        v.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+        return v
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         os_log("ShareExtension: viewDidLoad", log: log, type: .info)
-        // Make the view transparent so the share sheet doesn't show a blank screen
         view.backgroundColor = .clear
+        setupToast()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -29,16 +58,56 @@ class ShareViewController: UIViewController {
         handleSharedContent()
     }
 
+    private func setupToast() {
+        view.addSubview(toastContainer)
+        toastContainer.addSubview(iconView)
+        toastContainer.addSubview(toastLabel)
+
+        NSLayoutConstraint.activate([
+            toastContainer.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            toastContainer.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            toastContainer.widthAnchor.constraint(equalToConstant: 180),
+            toastContainer.heightAnchor.constraint(equalToConstant: 180),
+
+            iconView.centerXAnchor.constraint(equalTo: toastContainer.centerXAnchor),
+            iconView.centerYAnchor.constraint(equalTo: toastContainer.centerYAnchor, constant: -16),
+
+            toastLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 12),
+            toastLabel.leadingAnchor.constraint(equalTo: toastContainer.leadingAnchor, constant: 12),
+            toastLabel.trailingAnchor.constraint(equalTo: toastContainer.trailingAnchor, constant: -12),
+        ])
+    }
+
+    private func showToast(success: Bool, message: String) {
+        let symbolName = success ? "checkmark.circle.fill" : "xmark.circle.fill"
+        let config = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
+        iconView.image = UIImage(systemName: symbolName, withConfiguration: config)
+        toastLabel.text = message
+
+        UIView.animate(withDuration: 0.25, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 0.5) {
+            self.toastContainer.alpha = 1
+            self.toastContainer.transform = .identity
+        } completion: { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                UIView.animate(withDuration: 0.2) {
+                    self.toastContainer.alpha = 0
+                } completion: { _ in
+                    self.completeRequest()
+                }
+            }
+        }
+    }
+
     private func handleSharedContent() {
         guard let extensionItem = extensionContext?.inputItems.first as? NSExtensionItem else {
             os_log("ShareExtension: no extensionContext or inputItems", log: log, type: .error)
-            completeRequest()
+            showToast(success: false, message: "Nothing to save")
             return
         }
 
         guard let attachments = extensionItem.attachments, !attachments.isEmpty else {
             os_log("ShareExtension: no attachments found", log: log, type: .error)
-            completeRequest()
+            showToast(success: false, message: "Nothing to save")
             return
         }
 
@@ -63,7 +132,7 @@ class ShareViewController: UIViewController {
                             self?.saveAndDismiss(url: swiftURL)
                         } else {
                             os_log("ShareExtension: URL item was not a URL, type: %{public}@", log: log, type: .error, String(describing: type(of: item)))
-                            self?.completeRequest()
+                            self?.showToast(success: false, message: "Invalid URL")
                         }
                     }
                 }
@@ -82,11 +151,11 @@ class ShareViewController: UIViewController {
                                 self?.saveAndDismiss(url: url)
                             } else {
                                 os_log("ShareExtension: text is not a valid HTTP URL", log: log, type: .error)
-                                self?.completeRequest()
+                                self?.showToast(success: false, message: "Not a valid URL")
                             }
                         } else {
                             os_log("ShareExtension: plainText item was not a String, type: %{public}@", log: log, type: .error, String(describing: type(of: item)))
-                            self?.completeRequest()
+                            self?.showToast(success: false, message: "Could not read content")
                         }
                     }
                 }
@@ -95,20 +164,20 @@ class ShareViewController: UIViewController {
         }
 
         os_log("ShareExtension: no matching attachment type found", log: log, type: .error)
-        completeRequest()
+        showToast(success: false, message: "No URL found")
     }
 
     private func saveAndDismiss(url: URL) {
         if let defaults = UserDefaults(suiteName: appGroupID) {
             defaults.set(url.absoluteString, forKey: pendingURLKey)
             defaults.synchronize()
-            // Verify the write
             let saved = defaults.string(forKey: pendingURLKey)
             os_log("ShareExtension: saved URL to App Group defaults. Verified: %{public}@", log: log, type: .info, saved ?? "nil")
+            showToast(success: true, message: "Saved to Cookbook")
         } else {
             os_log("ShareExtension: FAILED to open App Group UserDefaults with suite: %{public}@", log: log, type: .error, appGroupID)
+            showToast(success: false, message: "Failed to save")
         }
-        completeRequest()
     }
 
     private func completeRequest() {
