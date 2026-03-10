@@ -98,26 +98,31 @@ public struct ContentView: View {
         #if !os(Android)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                checkPendingShareImport()
+                let hadPending = checkPendingShareImport()
+                if !hadPending && authVM.isAuthenticated {
+                    // Refresh recipe list when returning to foreground
+                    Task { await recipeVM.loadRecipes(reset: true) }
+                }
             }
         }
         #endif
     }
 
     #if !os(Android)
-    private func checkPendingShareImport() {
+    @discardableResult
+    private func checkPendingShareImport() -> Bool {
         print("[ShareImport] checkPendingShareImport called, isAuthenticated: \(authVM.isAuthenticated)")
-        guard authVM.isAuthenticated else { return }
+        guard authVM.isAuthenticated else { return false }
         let appGroupID = "group.com.jackabee.mealie"
         let pendingURLKey = "pendingImportURL"
         guard let defaults = UserDefaults(suiteName: appGroupID) else {
             print("[ShareImport] FAILED to open App Group UserDefaults with suite: \(appGroupID)")
-            return
+            return false
         }
         let urlString = defaults.string(forKey: pendingURLKey)
         print("[ShareImport] pendingImportURL value: \(urlString ?? "nil")")
         guard let urlString = urlString, !urlString.isEmpty else {
-            return
+            return false
         }
         // Clear immediately to prevent re-processing
         defaults.removeObject(forKey: pendingURLKey)
@@ -129,6 +134,7 @@ public struct ContentView: View {
             await recipeVM.importFromURL()
             print("[ShareImport] importFromURL completed, message: \(recipeVM.importMessage)")
         }
+        return true
     }
     #endif
 

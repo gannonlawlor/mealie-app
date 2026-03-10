@@ -125,7 +125,9 @@ struct RecipeDetailView: View {
                                         .foregroundStyle(.secondary)
                                 }
                         }
+                        .frame(maxWidth: .infinity)
                         .frame(height: 250)
+                        .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     } else if !recipeVM.isLocalMode {
                         if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
@@ -143,7 +145,9 @@ struct RecipeDetailView: View {
                                             .foregroundStyle(.secondary)
                                     }
                             }
+                            .frame(maxWidth: .infinity)
                             .frame(height: 250)
+                            .clipped()
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         } else {
                             AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
@@ -160,7 +164,9 @@ struct RecipeDetailView: View {
                                             .foregroundStyle(.secondary)
                                     }
                             }
+                            .frame(maxWidth: .infinity)
                             .frame(height: 250)
+                            .clipped()
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                     }
@@ -203,7 +209,8 @@ struct RecipeDetailView: View {
 
                 Spacer().frame(height: 32)
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -217,22 +224,20 @@ struct RecipeDetailView: View {
 
         return Group {
             if !items.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                            VStack(spacing: 4) {
-                                Text(item.0)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(formatDuration(item.1))
-                                    .font(.subheadline)
-                                    .bold()
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
-                            .cornerRadius(8)
+                HStack(spacing: 12) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        VStack(spacing: 4) {
+                            Text(item.0)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(formatDuration(item.1))
+                                .font(.subheadline)
+                                .bold()
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
+                        .cornerRadius(8)
                     }
                 }
             }
@@ -257,6 +262,7 @@ struct RecipeDetailView: View {
                                 .cornerRadius(16)
                         }
                     }
+                    .padding(.horizontal, 1)
                 }
             }
         }

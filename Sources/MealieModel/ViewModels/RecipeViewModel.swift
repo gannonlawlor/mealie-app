@@ -280,7 +280,8 @@ private let logger = Log(category: "Recipes")
             importMessage = "Recipe imported successfully!"
             importURL = ""
             isImporting = false
-            // Reload to show the new recipe
+            // Brief delay so the server indexes the new recipe before we fetch the list
+            try? await Task.sleep(nanoseconds: 500_000_000)
             await loadRecipes(reset: true)
         } catch {
             importMessage = "Failed to import recipe. Check the URL."
