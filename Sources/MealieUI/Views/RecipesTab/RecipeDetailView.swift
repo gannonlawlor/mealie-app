@@ -13,6 +13,7 @@ struct RecipeDetailView: View {
     var onDelete: () -> Void = {}
     @State var showDeleteAlert = false
     @State var showEditSheet = false
+    @State var isDescriptionExpanded = false
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
 
@@ -28,6 +29,7 @@ struct RecipeDetailView: View {
             }
         }
         .navigationTitle(recipeVM.selectedRecipe?.name ?? "Recipe")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 12) {
@@ -103,7 +105,8 @@ struct RecipeDetailView: View {
     }
 
     func recipeContent(_ recipe: Recipe) -> some View {
-        ScrollView {
+        GeometryReader { geo in
+        ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
                 // Hero Image
                 if let recipeId = recipe.id {
@@ -113,11 +116,27 @@ struct RecipeDetailView: View {
 
                 // Padded content below the image
                 VStack(alignment: .leading, spacing: 16) {
+                    // Recipe Title
+                    Text(recipe.name ?? "")
+                        .font(.title)
+                        .bold()
+
                     // Description
                     if let description = recipe.description, !description.isEmpty {
-                        Text(description)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(description)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(isDescriptionExpanded ? nil : 3)
+
+                            Button(action: {
+                                withAnimation { isDescriptionExpanded.toggle() }
+                            }) {
+                                Text(isDescriptionExpanded ? "Show less" : "Show more")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
                     }
 
                     // Original Recipe Link
@@ -152,7 +171,8 @@ struct RecipeDetailView: View {
                 }
                 .padding(.horizontal, 16)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: geo.size.width)
+        }
         }
     }
 
@@ -160,57 +180,35 @@ struct RecipeDetailView: View {
         Group {
             if recipeVM.isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
                 AsyncImage(url: URL(fileURLWithPath: path)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Rectangle()
-                        .fill(Color.clear)
-                        .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                        .overlay {
-                            Image(systemName: "photo")
-                                .font(.largeTitle)
-                                .foregroundStyle(.secondary)
-                        }
-                }
+                    image.resizable().aspectRatio(contentMode: .fit)
+                } placeholder: { imagePlaceholder }
             } else if !recipeVM.isLocalMode {
                 if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
                     AsyncImage(url: URL(fileURLWithPath: offlinePath)) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.clear)
-                            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(.secondary)
-                            }
-                    }
+                        image.resizable().aspectRatio(contentMode: .fit)
+                    } placeholder: { imagePlaceholder }
                 } else {
                     AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.clear)
-                            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(.secondary)
-                            }
-                    }
+                        image.resizable().aspectRatio(contentMode: .fit)
+                    } placeholder: { imagePlaceholder }
                 }
             }
         }
         .frame(maxWidth: .infinity)
         .frame(height: 250)
-        .clipped()
-        .contentShape(Rectangle())
+        .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    var imagePlaceholder: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+            .overlay {
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
+            }
     }
 
     func timeInfoSection(_ recipe: Recipe) -> some View {
@@ -250,18 +248,15 @@ struct RecipeDetailView: View {
 
         return Group {
             if !allTags.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(allTags.enumerated()), id: \.offset) { _, tag in
-                            Label(tag.1, systemImage: tag.0)
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.accentColor.opacity(0.12))
-                                .cornerRadius(16)
-                        }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(Array(allTags.enumerated()), id: \.offset) { _, tag in
+                        Label(tag.1, systemImage: tag.0)
+                            .font(.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.accentColor.opacity(0.12))
+                            .cornerRadius(16)
                     }
-                    .padding(.horizontal, 1)
                 }
             }
         }
