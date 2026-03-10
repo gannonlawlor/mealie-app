@@ -180,24 +180,23 @@ struct RecipeDetailView: View {
         Group {
             if recipeVM.isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
                 AsyncImage(url: URL(fileURLWithPath: path)) { image in
-                    image.resizable().aspectRatio(contentMode: .fit)
+                    image.resizable().aspectRatio(contentMode: .fill)
                 } placeholder: { imagePlaceholder }
             } else if !recipeVM.isLocalMode {
                 if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
                     AsyncImage(url: URL(fileURLWithPath: offlinePath)) { image in
-                        image.resizable().aspectRatio(contentMode: .fit)
+                        image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: { imagePlaceholder }
                 } else {
                     AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
-                        image.resizable().aspectRatio(contentMode: .fit)
+                        image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: { imagePlaceholder }
                 }
             }
         }
         .frame(maxWidth: .infinity)
         .frame(height: 250)
-        .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipped()
     }
 
     var imagePlaceholder: some View {
@@ -248,15 +247,18 @@ struct RecipeDetailView: View {
 
         return Group {
             if !allTags.isEmpty {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], alignment: .leading, spacing: 8) {
-                    ForEach(Array(allTags.enumerated()), id: \.offset) { _, tag in
-                        Label(tag.1, systemImage: tag.0)
-                            .font(.caption)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.accentColor.opacity(0.12))
-                            .cornerRadius(16)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(allTags.enumerated()), id: \.offset) { _, tag in
+                            Label(tag.1, systemImage: tag.0)
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.accentColor.opacity(0.12))
+                                .cornerRadius(16)
+                        }
                     }
+                    .padding(.horizontal, 1)
                 }
             }
         }
