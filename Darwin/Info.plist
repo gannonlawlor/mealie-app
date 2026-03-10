@@ -17,6 +17,8 @@
             </array>
         </dict>
     </array>
+    <key>NSRemindersUsageDescription</key>
+    <string>Add recipe ingredients to your Reminders grocery list.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>

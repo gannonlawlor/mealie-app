@@ -11,8 +11,70 @@ private let logger = Log(category: "Shopping")
     public var errorMessage: String = ""
     public var errorDetail: String = ""
     public var newItemNote: String = ""
+    public var addedItemCount: Int = 0
+    public var pendingItemCounts: [String: Int] = [:]
+    public var isSyncing: Bool = false
+    public var syncMessage: String = ""
 
     public init() {}
+
+    public func refreshPendingCounts() {
+        let all = LocalGroceryStore.shared.loadAllPending()
+        var counts: [String: Int] = [:]
+        for (key, items) in all {
+            counts[key] = items.count
+        }
+        pendingItemCounts = counts
+    }
+
+    public func pendingCount(forListId listId: String) -> Int {
+        return pendingItemCounts[listId] ?? 0
+    }
+
+    public func addIngredientLocally(listId: String, ingredient: RecipeIngredient) {
+        let item = PendingGroceryItem(
+            shoppingListId: listId,
+            note: ingredient.displayText,
+            quantity: ingredient.quantity
+        )
+        LocalGroceryStore.shared.addPendingItem(item, forListId: listId)
+        addedItemCount += 1
+        refreshPendingCounts()
+    }
+
+    public func syncPendingItems(forListId listId: String) async {
+        let pending = LocalGroceryStore.shared.pendingItems(forListId: listId)
+        guard !pending.isEmpty else { return }
+
+        isSyncing = true
+        syncMessage = ""
+        var successCount = 0
+
+        for item in pending {
+            let createItem = CreateShoppingListItem(
+                shoppingListId: listId,
+                note: item.note,
+                quantity: item.quantity
+            )
+            do {
+                let _ = try await MealieAPI.shared.createShoppingListItem(createItem)
+                successCount += 1
+            } catch {
+                logger.error("Failed to sync pending item '\(item.note)': \(error)")
+            }
+        }
+
+        if successCount == pending.count {
+            LocalGroceryStore.shared.clearPendingItems(forListId: listId)
+            syncMessage = "Uploaded \(successCount) items"
+        } else {
+            syncMessage = "Uploaded \(successCount)/\(pending.count) items"
+        }
+
+        refreshPendingCounts()
+        isSyncing = false
+        await loadShoppingList(id: listId)
+    }
 
     public func loadShoppingLists() async {
         if shoppingLists.isEmpty, let cached = CacheService.shared.loadShoppingLists() {
@@ -127,6 +189,24 @@ private let logger = Log(category: "Shopping")
             errorMessage = "Failed to update item."
             errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to toggle item: \(error)")
+        }
+    }
+
+    public func addIngredientToList(listId: String, ingredient: RecipeIngredient) async -> Bool {
+        let item = CreateShoppingListItem(
+            shoppingListId: listId,
+            note: ingredient.displayText,
+            quantity: ingredient.quantity
+        )
+        do {
+            let _ = try await MealieAPI.shared.createShoppingListItem(item)
+            addedItemCount += 1
+            return true
+        } catch {
+            errorMessage = "Failed to add ingredient."
+            errorDetail = AppEnvironment.errorDetail(error)
+            logger.error("Failed to add ingredient to shopping list: \(error)")
+            return false
         }
     }
 

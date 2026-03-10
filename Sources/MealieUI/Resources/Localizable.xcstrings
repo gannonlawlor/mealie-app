@@ -13,6 +13,9 @@
     "%lld items remaining" : {
 
     },
+    "%lld pending" : {
+
+    },
     "%lld." : {
 
     },
@@ -41,6 +44,12 @@
 
     },
     "Add Step" : {
+
+    },
+    "Add to iOS Reminders" : {
+
+    },
+    "Add to Shopping List" : {
 
     },
     "App Version" : {
@@ -157,6 +166,9 @@
     "Local Mode" : {
 
     },
+    "Long press to add" : {
+
+    },
     "Meal Plan" : {
 
     },
@@ -187,6 +199,9 @@
     "No recipes found" : {
 
     },
+    "No shopping lists found" : {
+
+    },
     "No shopping lists yet" : {
 
     },
@@ -205,6 +220,9 @@
     "Paste a URL from a recipe website and Mealie will automatically import it." : {
 
     },
+    "Pending Upload" : {
+
+    },
     "Prep Time" : {
 
     },
@@ -212,6 +230,9 @@
 
     },
     "Profile" : {
+
+    },
+    "Queue Items Locally" : {
 
     },
     "Recipe Already Exists" : {
@@ -236,6 +257,9 @@
 
     },
     "Save" : {
+
+    },
+    "Save grocery list items locally first, then upload them when you visit the shopping list." : {
 
     },
     "Save recipes locally on your device. You can connect to a server later." : {
@@ -307,6 +331,12 @@
     "Update Existing" : {
 
     },
+    "Upload %lld items" : {
+
+    },
+    "Uploading..." : {
+
+    },
     "URL" : {
 
     },
@@ -320,6 +350,9 @@
 
     },
     "View Original Recipe ↗" : {
+
+    },
+    "When adding ingredients to a shopping list, also add them to your Reminders grocery list." : {
 
     },
     "Yield (e.g. 4 servings)" : {

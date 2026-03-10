@@ -12,6 +12,8 @@ public class AppSettings: @unchecked Sendable {
 
     private let themeKey = "mealie_app_theme"
     private let keepAwakeKey = "mealie_keep_screen_awake"
+    private let addToRemindersKey = "mealie_add_to_reminders"
+    private let localGroceryListKey = "mealie_local_grocery_list"
 
     private init() {}
 
@@ -31,5 +33,15 @@ public class AppSettings: @unchecked Sendable {
     public var keepScreenAwake: Bool {
         get { UserDefaults.standard.bool(forKey: keepAwakeKey) }
         set { UserDefaults.standard.set(newValue, forKey: keepAwakeKey) }
+    }
+
+    public var addToReminders: Bool {
+        get { UserDefaults.standard.bool(forKey: addToRemindersKey) }
+        set { UserDefaults.standard.set(newValue, forKey: addToRemindersKey) }
+    }
+
+    public var localGroceryList: Bool {
+        get { UserDefaults.standard.bool(forKey: localGroceryListKey) }
+        set { UserDefaults.standard.set(newValue, forKey: localGroceryListKey) }
     }
 }

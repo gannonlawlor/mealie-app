@@ -9,11 +9,14 @@ import MealieModel
 
 struct RecipeDetailView: View {
     @Bindable var recipeVM: RecipeViewModel
+    @Bindable var shoppingVM: ShoppingViewModel
     let slug: String
     var onDelete: () -> Void = {}
     @State var showDeleteAlert = false
     @State var showEditSheet = false
     @State var isDescriptionExpanded = false
+    @State var showShoppingListPicker = false
+    @State var selectedIngredient: RecipeIngredient? = nil
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
 
@@ -90,6 +93,22 @@ struct RecipeDetailView: View {
         .task {
             await recipeVM.loadRecipeDetail(slug: slug)
         }
+        .task {
+            if !recipeVM.isLocalMode && shoppingVM.shoppingLists.isEmpty {
+                await shoppingVM.loadShoppingLists()
+            }
+        }
+        .sheet(isPresented: $showShoppingListPicker) {
+            shoppingListPickerSheet
+        }
+        .onChange(of: showShoppingListPicker) { _, showing in
+            if showing {
+                shoppingVM.refreshPendingCounts()
+            }
+        }
+        #if !os(Android)
+        .sensoryFeedback(.success, trigger: shoppingVM.addedItemCount)
+        #endif
         .onAppear {
             if AppSettings.shared.keepScreenAwake {
                 #if !os(Android)
@@ -101,6 +120,67 @@ struct RecipeDetailView: View {
             #if !os(Android)
             UIApplication.shared.isIdleTimerDisabled = false
             #endif
+        }
+    }
+
+    var shoppingListPickerSheet: some View {
+        NavigationStack {
+            List {
+                if shoppingVM.shoppingLists.isEmpty {
+                    Text("No shopping lists found")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(shoppingVM.shoppingLists) { list in
+                        Button(action: {
+                            guard let listId = list.id, let ingredient = selectedIngredient else { return }
+                            if AppSettings.shared.localGroceryList {
+                                shoppingVM.addIngredientLocally(listId: listId, ingredient: ingredient)
+                                #if canImport(EventKit)
+                                if AppSettings.shared.addToReminders {
+                                    Task {
+                                        let _ = await RemindersService.shared.addToGroceryList(text: ingredient.displayText)
+                                    }
+                                }
+                                #endif
+                                showShoppingListPicker = false
+                                selectedIngredient = nil
+                            } else {
+                                Task {
+                                    let success = await shoppingVM.addIngredientToList(listId: listId, ingredient: ingredient)
+                                    if success {
+                                        #if canImport(EventKit)
+                                        if AppSettings.shared.addToReminders {
+                                            let _ = await RemindersService.shared.addToGroceryList(text: ingredient.displayText)
+                                        }
+                                        #endif
+                                    }
+                                    showShoppingListPicker = false
+                                    selectedIngredient = nil
+                                }
+                            }
+                        }) {
+                            HStack {
+                                Text(list.name ?? "Untitled")
+                                if shoppingVM.pendingCount(forListId: list.id ?? "") > 0 {
+                                    Spacer()
+                                    Text("\(shoppingVM.pendingCount(forListId: list.id ?? "")) pending")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add to Shopping List")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showShoppingListPicker = false
+                        selectedIngredient = nil
+                    }
+                }
+            }
         }
     }
 
@@ -266,9 +346,17 @@ struct RecipeDetailView: View {
 
     func ingredientsSection(_ ingredients: [RecipeIngredient]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Ingredients")
-                .font(.title2)
-                .bold()
+            HStack {
+                Text("Ingredients")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                if !recipeVM.isLocalMode {
+                    Text("Long press to add")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(ingredients.enumerated()), id: \.offset) { _, ingredient in
@@ -285,6 +373,12 @@ struct RecipeDetailView: View {
                             .foregroundStyle(.secondary)
                         Text(ingredient.displayText)
                             .font(.body)
+                    }
+                    .onLongPressGesture {
+                        if !recipeVM.isLocalMode {
+                            selectedIngredient = ingredient
+                            showShoppingListPicker = true
+                        }
                     }
                 }
             }

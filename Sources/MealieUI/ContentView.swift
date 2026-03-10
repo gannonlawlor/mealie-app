@@ -141,7 +141,7 @@ public struct ContentView: View {
     var mainTabView: some View {
         TabView(selection: $selectedTab) {
             NavigationStack {
-                RecipeListView(recipeVM: recipeVM)
+                RecipeListView(recipeVM: recipeVM, shoppingVM: shoppingVM)
             }
             .tag(AppTab.recipes)
             .tabItem {
@@ -186,7 +186,7 @@ public struct ContentView: View {
             Group {
                 switch selectedTab {
                 case .recipes:
-                    RecipeSplitView(recipeVM: recipeVM)
+                    RecipeSplitView(recipeVM: recipeVM, shoppingVM: shoppingVM)
                 case .mealPlan:
                     NavigationStack {
                         MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)

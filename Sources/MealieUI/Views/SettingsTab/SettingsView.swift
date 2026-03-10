@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State var showLogoutAlert = false
     @State var selectedTheme: AppTheme = AppSettings.shared.theme
     @State var keepScreenAwake: Bool = AppSettings.shared.keepScreenAwake
+    @State var addToReminders: Bool = AppSettings.shared.addToReminders
+    @State var localGroceryList: Bool = AppSettings.shared.localGroceryList
 
     var body: some View {
         List {
@@ -38,6 +40,37 @@ struct SettingsView: View {
             } footer: {
                 Text("Prevents the screen from dimming while viewing a recipe.")
             }
+
+            if !authVM.isLocalMode {
+                Section {
+                    Toggle("Queue Items Locally", isOn: $localGroceryList)
+                        .onChange(of: localGroceryList) { _, newValue in
+                            AppSettings.shared.localGroceryList = newValue
+                        }
+                } footer: {
+                    Text("Save grocery list items locally first, then upload them when you visit the shopping list.")
+                }
+            }
+
+            #if !os(Android)
+            Section {
+                Toggle("Add to iOS Reminders", isOn: $addToReminders)
+                    .onChange(of: addToReminders) { _, newValue in
+                        AppSettings.shared.addToReminders = newValue
+                        if newValue {
+                            Task {
+                                let granted = await RemindersService.shared.requestAccess()
+                                if !granted {
+                                    addToReminders = false
+                                    AppSettings.shared.addToReminders = false
+                                }
+                            }
+                        }
+                    }
+            } footer: {
+                Text("When adding ingredients to a shopping list, also add them to your Reminders grocery list.")
+            }
+            #endif
 
             if authVM.isLocalMode {
                 // Local Mode Info
