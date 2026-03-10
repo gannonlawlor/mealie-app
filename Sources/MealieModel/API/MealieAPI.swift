@@ -27,7 +27,7 @@ public class MealieAPI: @unchecked Sendable {
     var accessToken: String = ""
 
     /// Called on the main actor when a 401 persists after token refresh fails.
-    public var onUnauthorized: (@MainActor @Sendable () -> Void)?
+    public var onUnauthorized: @MainActor @Sendable () -> Void = {}
 
     private init() {}
 
@@ -113,7 +113,7 @@ public class MealieAPI: @unchecked Sendable {
 
     private func notifyUnauthorized() {
         let callback = onUnauthorized
-        Task { @MainActor in callback?() }
+        Task { @MainActor in callback() }
     }
 
     func perform<T: Decodable>(_ request: URLRequest) async throws -> T {

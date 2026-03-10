@@ -10,7 +10,7 @@ import MealieModel
 struct RecipeDetailView: View {
     @Bindable var recipeVM: RecipeViewModel
     let slug: String
-    var onDelete: (() -> Void)? = nil
+    var onDelete: () -> Void = {}
     @State var showDeleteAlert = false
     @State var showEditSheet = false
     @Environment(\.dismiss) var dismiss
@@ -77,11 +77,8 @@ struct RecipeDetailView: View {
                 Task {
                     let success = await recipeVM.deleteRecipe(slug: slug)
                     if success {
-                        if let onDelete = onDelete {
-                            onDelete()
-                        } else {
-                            dismiss()
-                        }
+                        onDelete()
+                        dismiss()
                     }
                 }
             }
@@ -155,6 +152,7 @@ struct RecipeDetailView: View {
                 }
                 .padding(.horizontal, 16)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -209,8 +207,10 @@ struct RecipeDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 250)
         .clipped()
+        .contentShape(Rectangle())
     }
 
     func timeInfoSection(_ recipe: Recipe) -> some View {
