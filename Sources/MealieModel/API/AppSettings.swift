@@ -14,6 +14,8 @@ public class AppSettings: @unchecked Sendable {
     private let keepAwakeKey = "mealie_keep_screen_awake"
     private let addToRemindersKey = "mealie_add_to_reminders"
     private let localGroceryListKey = "mealie_local_grocery_list"
+    private let defaultShoppingListIdKey = "mealie_default_shopping_list_id"
+    private let defaultShoppingListNameKey = "mealie_default_shopping_list_name"
 
     private init() {}
 
@@ -43,5 +45,15 @@ public class AppSettings: @unchecked Sendable {
     public var localGroceryList: Bool {
         get { UserDefaults.standard.bool(forKey: localGroceryListKey) }
         set { UserDefaults.standard.set(newValue, forKey: localGroceryListKey) }
+    }
+
+    public var defaultShoppingListId: String? {
+        get { UserDefaults.standard.string(forKey: defaultShoppingListIdKey) }
+        set { UserDefaults.standard.set(newValue, forKey: defaultShoppingListIdKey) }
+    }
+
+    public var defaultShoppingListName: String? {
+        get { UserDefaults.standard.string(forKey: defaultShoppingListNameKey) }
+        set { UserDefaults.standard.set(newValue, forKey: defaultShoppingListNameKey) }
     }
 }

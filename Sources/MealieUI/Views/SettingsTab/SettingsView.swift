@@ -9,12 +9,14 @@ import MealieModel
 
 struct SettingsView: View {
     @Bindable var authVM: AuthViewModel
+    @Bindable var shoppingVM: ShoppingViewModel
     var onThemeChange: ((AppTheme) -> Void)? = nil
     @State var showLogoutAlert = false
     @State var selectedTheme: AppTheme = AppSettings.shared.theme
     @State var keepScreenAwake: Bool = AppSettings.shared.keepScreenAwake
     @State var addToReminders: Bool = AppSettings.shared.addToReminders
     @State var localGroceryList: Bool = AppSettings.shared.localGroceryList
+    @State var defaultListId: String = AppSettings.shared.defaultShoppingListId ?? ""
 
     var body: some View {
         List {
@@ -43,12 +45,30 @@ struct SettingsView: View {
 
             if !authVM.isLocalMode {
                 Section {
+                    Picker("Default Shopping List", selection: $defaultListId) {
+                        Text("Ask Every Time").tag("")
+                        ForEach(shoppingVM.shoppingLists) { list in
+                            Text(list.name ?? "Untitled").tag(list.id ?? "")
+                        }
+                    }
+                    .onChange(of: defaultListId) { _, newValue in
+                        if newValue.isEmpty {
+                            AppSettings.shared.defaultShoppingListId = nil
+                            AppSettings.shared.defaultShoppingListName = nil
+                        } else {
+                            AppSettings.shared.defaultShoppingListId = newValue
+                            AppSettings.shared.defaultShoppingListName = shoppingVM.shoppingLists.first(where: { $0.id == newValue })?.name
+                        }
+                    }
+
                     Toggle("Queue Items Locally", isOn: $localGroceryList)
                         .onChange(of: localGroceryList) { _, newValue in
                             AppSettings.shared.localGroceryList = newValue
                         }
+                } header: {
+                    Text("Shopping Lists")
                 } footer: {
-                    Text("Save grocery list items locally first, then upload them when you visit the shopping list.")
+                    Text("Set a default list to skip the picker when adding ingredients. Queue locally to save items offline and upload later.")
                 }
             }
 
@@ -178,11 +198,16 @@ struct SettingsView: View {
                  : "Are you sure you want to sign out?")
         }
         .task {
-            if !authVM.isLocalMode, authVM.serverInfo == nil {
-                do {
-                    authVM.serverInfo = try await MealieAPI.shared.getAppInfo()
-                } catch {
-                    // Ignore
+            if !authVM.isLocalMode {
+                if authVM.serverInfo == nil {
+                    do {
+                        authVM.serverInfo = try await MealieAPI.shared.getAppInfo()
+                    } catch {
+                        // Ignore
+                    }
+                }
+                if shoppingVM.shoppingLists.isEmpty {
+                    await shoppingVM.loadShoppingLists()
                 }
             }
         }

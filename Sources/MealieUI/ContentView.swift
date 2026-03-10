@@ -167,7 +167,7 @@ public struct ContentView: View {
             }
 
             NavigationStack {
-                SettingsView(authVM: authVM, onThemeChange: { appTheme = $0 })
+                SettingsView(authVM: authVM, shoppingVM: shoppingVM, onThemeChange: { appTheme = $0 })
             }
             .tag(AppTab.settings)
             .tabItem {
@@ -196,7 +196,7 @@ public struct ContentView: View {
                     ShoppingSplitView(shoppingVM: shoppingVM)
                 case .settings:
                     NavigationStack {
-                        SettingsView(authVM: authVM, onThemeChange: { appTheme = $0 })
+                        SettingsView(authVM: authVM, shoppingVM: shoppingVM, onThemeChange: { appTheme = $0 })
                     }
 
                 }

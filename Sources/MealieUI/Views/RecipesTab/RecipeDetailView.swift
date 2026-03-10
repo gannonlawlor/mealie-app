@@ -376,8 +376,12 @@ struct RecipeDetailView: View {
                     }
                     .onLongPressGesture {
                         if !recipeVM.isLocalMode {
-                            selectedIngredient = ingredient
-                            showShoppingListPicker = true
+                            if let defaultListId = AppSettings.shared.defaultShoppingListId, !defaultListId.isEmpty {
+                                addIngredientToDefault(ingredient: ingredient, listId: defaultListId)
+                            } else {
+                                selectedIngredient = ingredient
+                                showShoppingListPicker = true
+                            }
                         }
                     }
                 }
@@ -457,6 +461,23 @@ struct RecipeDetailView: View {
                 }
             }
         }
+    }
+
+    func addIngredientToDefault(ingredient: RecipeIngredient, listId: String) {
+        if AppSettings.shared.localGroceryList {
+            shoppingVM.addIngredientLocally(listId: listId, ingredient: ingredient)
+        } else {
+            Task {
+                let _ = await shoppingVM.addIngredientToList(listId: listId, ingredient: ingredient)
+            }
+        }
+        #if canImport(EventKit)
+        if AppSettings.shared.addToReminders {
+            Task {
+                let _ = await RemindersService.shared.addToGroceryList(text: ingredient.displayText)
+            }
+        }
+        #endif
     }
 
     func formatDuration(_ iso: String) -> String {
