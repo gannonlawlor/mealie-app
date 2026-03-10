@@ -107,111 +107,110 @@ struct RecipeDetailView: View {
 
     func recipeContent(_ recipe: Recipe) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
                 // Hero Image
                 if let recipeId = recipe.id {
-                    if recipeVM.isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
-                        AsyncImage(url: URL(fileURLWithPath: path)) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Rectangle()
-                                .fill(Color.clear)
-                                .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                                .overlay {
-                                    Image(systemName: "photo")
-                                        .font(.largeTitle)
-                                        .foregroundStyle(.secondary)
-                                }
+                    heroImage(recipeId: recipeId)
+                        .padding(.bottom, 16)
+                }
+
+                // Padded content below the image
+                VStack(alignment: .leading, spacing: 16) {
+                    // Description
+                    if let description = recipe.description, !description.isEmpty {
+                        Text(description)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Original Recipe Link
+                    if let orgURL = recipe.orgURL, !orgURL.isEmpty, let url = URL(string: orgURL) {
+                        Link("View Original Recipe \u{2197}", destination: url)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentColor)
+                    }
+
+                    // Time & Yield Info
+                    timeInfoSection(recipe)
+
+                    // Categories & Tags
+                    tagsSection(recipe)
+
+                    // Ingredients
+                    if let ingredients = recipe.recipeIngredient, !ingredients.isEmpty {
+                        ingredientsSection(ingredients)
+                    }
+
+                    // Instructions
+                    if let instructions = recipe.recipeInstructions, !instructions.isEmpty {
+                        instructionsSection(instructions)
+                    }
+
+                    // Nutrition
+                    if let nutrition = recipe.nutrition {
+                        nutritionSection(nutrition)
+                    }
+
+                    Spacer().frame(height: 32)
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    func heroImage(recipeId: String) -> some View {
+        Group {
+            if recipeVM.isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                AsyncImage(url: URL(fileURLWithPath: path)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+                        .overlay {
+                            Image(systemName: "photo")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 250)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    } else if !recipeVM.isLocalMode {
-                        if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
-                            AsyncImage(url: URL(fileURLWithPath: offlinePath)) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                                    .overlay {
-                                        Image(systemName: "photo")
-                                            .font(.largeTitle)
-                                            .foregroundStyle(.secondary)
-                                    }
+                }
+            } else if !recipeVM.isLocalMode {
+                if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                    AsyncImage(url: URL(fileURLWithPath: offlinePath)) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.secondary)
                             }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 250)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        } else {
-                            AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
-                                    .overlay {
-                                        Image(systemName: "photo")
-                                            .font(.largeTitle)
-                                            .foregroundStyle(.secondary)
-                                    }
+                    }
+                } else {
+                    AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.secondary)
                             }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 250)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
                     }
                 }
-
-                // Description
-                if let description = recipe.description, !description.isEmpty {
-                    Text(description)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-
-                // Original Recipe Link
-                if let orgURL = recipe.orgURL, !orgURL.isEmpty, let url = URL(string: orgURL) {
-                    Link("View Original Recipe \u{2197}", destination: url)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.accentColor)
-                }
-
-                // Time & Yield Info
-                timeInfoSection(recipe)
-
-                // Categories & Tags
-                tagsSection(recipe)
-
-                // Ingredients
-                if let ingredients = recipe.recipeIngredient, !ingredients.isEmpty {
-                    ingredientsSection(ingredients)
-                }
-
-                // Instructions
-                if let instructions = recipe.recipeInstructions, !instructions.isEmpty {
-                    instructionsSection(instructions)
-                }
-
-                // Nutrition
-                if let nutrition = recipe.nutrition {
-                    nutritionSection(nutrition)
-                }
-
-                Spacer().frame(height: 32)
             }
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(height: 250)
+        .clipped()
     }
 
     func timeInfoSection(_ recipe: Recipe) -> some View {
