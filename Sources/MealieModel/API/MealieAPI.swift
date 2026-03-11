@@ -371,7 +371,7 @@ public class MealieAPI: @unchecked Sendable {
     }
 
     public func updateShoppingListItem(_ item: ShoppingListItem) async throws {
-        let body = try JSONEncoder().encode(item)
+        let body = try JSONEncoder().encode([item])
         let request = try buildRequest(method: "PUT", path: "/api/households/shopping/items", body: body)
         let _ = try await performRaw(request)
     }

@@ -17,6 +17,8 @@ struct RecipeDetailView: View {
     @State var isDescriptionExpanded = false
     @State var showShoppingListPicker = false
     @State var selectedIngredient: RecipeIngredient? = nil
+    @State var pressedIngredientIndex: Int = -1
+    @State var longPressProgress: Double = 0
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
 
@@ -359,7 +361,7 @@ struct RecipeDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(ingredients.enumerated()), id: \.offset) { _, ingredient in
+                ForEach(Array(ingredients.enumerated()), id: \.offset) { index, ingredient in
                     if let title = ingredient.title, !title.isEmpty {
                         Text(title)
                             .font(.subheadline)
@@ -373,7 +375,45 @@ struct RecipeDetailView: View {
                             .foregroundStyle(.secondary)
                         Text(ingredient.displayText)
                             .font(.body)
+                        Spacer()
                     }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        GeometryReader { geo in
+                            Rectangle()
+                                .fill(Color.accentColor.opacity(0.15))
+                                .frame(width: geo.size.width * (pressedIngredientIndex == index ? longPressProgress : 0))
+                        }
+                    )
+                    .cornerRadius(8)
+                    #if !os(Android)
+                    .onLongPressGesture(minimumDuration: 0.5, pressing: { pressing in
+                        if pressing && !recipeVM.isLocalMode {
+                            pressedIngredientIndex = index
+                            withAnimation(.linear(duration: 0.5)) {
+                                longPressProgress = 1.0
+                            }
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                longPressProgress = 0
+                            }
+                            pressedIngredientIndex = -1
+                        }
+                    }) {
+                        guard !recipeVM.isLocalMode else { return }
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            longPressProgress = 0
+                        }
+                        pressedIngredientIndex = -1
+                        if let defaultListId = AppSettings.shared.defaultShoppingListId, !defaultListId.isEmpty {
+                            addIngredientToDefault(ingredient: ingredient, listId: defaultListId)
+                        } else {
+                            selectedIngredient = ingredient
+                            showShoppingListPicker = true
+                        }
+                    }
+                    #else
                     .onLongPressGesture {
                         if !recipeVM.isLocalMode {
                             if let defaultListId = AppSettings.shared.defaultShoppingListId, !defaultListId.isEmpty {
@@ -384,6 +424,7 @@ struct RecipeDetailView: View {
                             }
                         }
                     }
+                    #endif
                 }
             }
         }
