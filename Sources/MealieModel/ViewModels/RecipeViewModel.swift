@@ -96,6 +96,12 @@ private let logger = Log(category: "Recipes")
             }
             totalPages = response.totalPages
             isLoading = false
+
+            // Preload thumbnails in background
+            let recipesToCache = recipes
+            Task.detached {
+                await ImageCacheService.shared.preloadThumbnails(recipes: recipesToCache)
+            }
         } catch {
             errorMessage = "Failed to load recipes."
             errorDetail = AppEnvironment.errorDetail(error)
@@ -453,6 +459,31 @@ private let logger = Log(category: "Recipes")
             removeRecipeOffline(recipeId: recipeId)
         } else {
             await saveRecipeOffline(slug: slug)
+        }
+    }
+
+    // MARK: - Image Upload
+
+    public func uploadImage(slug: String, imageData: Data) async -> Bool {
+        if isLocalMode {
+            if let recipe = selectedRecipe, let id = recipe.id {
+                let _ = LocalRecipeStore.shared.saveImage(data: imageData, recipeId: id)
+            }
+            return true
+        }
+
+        do {
+            try await MealieAPI.shared.uploadRecipeImage(slug: slug, imageData: imageData)
+            // Clear cached images so fresh ones are loaded
+            if let recipeId = selectedRecipe?.id {
+                ImageCacheService.shared.removeCachedImages(recipeId: recipeId)
+            }
+            return true
+        } catch {
+            errorMessage = "Failed to upload image."
+            errorDetail = AppEnvironment.errorDetail(error)
+            logger.error("Failed to upload recipe image: \(error)")
+            return false
         }
     }
 

@@ -64,6 +64,9 @@
     "Are you sure you want to sign out?" : {
 
     },
+    "Ask Every Time" : {
+
+    },
     "Built with" : {
 
     },
@@ -104,6 +107,9 @@
 
     },
     "Dark" : {
+
+    },
+    "Default Shopping List" : {
 
     },
     "Delete" : {
@@ -259,9 +265,6 @@
     "Save" : {
 
     },
-    "Save grocery list items locally first, then upload them when you visit the shopping list." : {
-
-    },
     "Save recipes locally on your device. You can connect to a server later." : {
 
     },
@@ -278,6 +281,9 @@
 
     },
     "Server URL (e.g. mealie.example.com)" : {
+
+    },
+    "Set a default list to skip the picker when adding ingredients. Queue locally to save items offline and upload later." : {
 
     },
     "Settings" : {

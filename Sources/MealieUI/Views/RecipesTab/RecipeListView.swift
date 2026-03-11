@@ -285,36 +285,37 @@ struct RecipeRowView: View {
     var isLocalMode: Bool = false
     var isSavedOffline: Bool = false
 
+    var thumbnailURL: URL? {
+        guard let recipeId = recipe.id else { return nil }
+        if isLocalMode {
+            if let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                return URL(fileURLWithPath: path)
+            }
+            return nil
+        }
+        if let cachedPath = ImageCacheService.shared.cachedImagePath(recipeId: recipeId, imageType: "tiny-original.webp") {
+            return URL(fileURLWithPath: cachedPath)
+        }
+        return URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId, imageType: "tiny-original.webp"))
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            if let recipeId = recipe.id {
-                if isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
-                    AsyncImage(url: URL(fileURLWithPath: path)) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                } else if !isLocalMode {
-                    AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId, imageType: "tiny-original.webp"))) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                } else {
+            if let url = thumbnailURL {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
                     Image(systemName: "photo")
                         .foregroundStyle(.secondary)
-                        .frame(width: 60, height: 60)
                 }
+                .frame(width: 60, height: 60)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if recipe.id != nil {
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, height: 60)
             }
 
             VStack(alignment: .leading, spacing: 4) {

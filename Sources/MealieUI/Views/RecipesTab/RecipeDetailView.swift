@@ -94,6 +94,12 @@ struct RecipeDetailView: View {
         }
         .task {
             await recipeVM.loadRecipeDetail(slug: slug)
+            // Cache detail image in background for future cold starts
+            if !recipeVM.isLocalMode, let recipeId = recipeVM.selectedRecipe?.id {
+                Task.detached {
+                    await ImageCacheService.shared.cacheDetailImage(recipeId: recipeId)
+                }
+            }
         }
         .task {
             if !recipeVM.isLocalMode && shoppingVM.shoppingLists.isEmpty {
@@ -258,22 +264,28 @@ struct RecipeDetailView: View {
         }
     }
 
+    func heroImageURL(recipeId: String) -> URL? {
+        if recipeVM.isLocalMode {
+            if let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                return URL(fileURLWithPath: path)
+            }
+            return nil
+        }
+        if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+            return URL(fileURLWithPath: offlinePath)
+        }
+        if let cachedPath = ImageCacheService.shared.cachedImagePath(recipeId: recipeId, imageType: "min-original.webp") {
+            return URL(fileURLWithPath: cachedPath)
+        }
+        return URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))
+    }
+
     func heroImage(recipeId: String) -> some View {
         Group {
-            if recipeVM.isLocalMode, let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
-                AsyncImage(url: URL(fileURLWithPath: path)) { image in
+            if let url = heroImageURL(recipeId: recipeId) {
+                AsyncImage(url: url) { image in
                     image.resizable().aspectRatio(contentMode: .fill)
                 } placeholder: { imagePlaceholder }
-            } else if !recipeVM.isLocalMode {
-                if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
-                    AsyncImage(url: URL(fileURLWithPath: offlinePath)) { image in
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } placeholder: { imagePlaceholder }
-                } else {
-                    AsyncImage(url: URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))) { image in
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } placeholder: { imagePlaceholder }
-                }
             }
         }
         .frame(maxWidth: .infinity)

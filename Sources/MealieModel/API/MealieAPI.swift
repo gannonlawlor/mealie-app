@@ -277,6 +277,34 @@ public class MealieAPI: @unchecked Sendable {
         "\(baseURL)/api/media/recipes/\(recipeId)/images/\(imageType)"
     }
 
+    public func uploadRecipeImage(slug: String, imageData: Data) async throws {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        guard let url = buildURL(path: "/api/recipes/\(slug)/image") else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if !accessToken.isEmpty {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        var body = Data()
+        body.append(Data("--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"image\"; filename=\"recipe.jpg\"\r\n".utf8))
+        body.append(Data("Content-Type: image/jpeg\r\n\r\n".utf8))
+        body.append(imageData)
+        body.append(Data("\r\n--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"extension\"\r\n\r\n".utf8))
+        body.append(Data(".jpg".utf8))
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+
+        request.httpBody = body
+
+        let _ = try await performRaw(request)
+    }
+
     // MARK: - Favorites
 
     public func addFavorite(userId: String, slug: String) async throws {

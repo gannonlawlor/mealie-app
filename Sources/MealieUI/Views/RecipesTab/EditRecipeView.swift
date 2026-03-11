@@ -4,6 +4,7 @@ import SkipFuse
 import SkipFuseUI
 #else
 import SwiftUI
+import PhotosUI
 #endif
 import MealieModel
 
@@ -23,10 +24,62 @@ struct EditRecipeView: View {
     @State var selectedCategoryIds: Set<String> = []
     @State var selectedTagIds: Set<String> = []
     @State var isSaving = false
+    @State var selectedImageData: Data? = nil
+    @State var selectedImageURL: URL? = nil
+    #if !os(Android)
+    @State var selectedPhoto: PhotosPickerItem? = nil
+    #endif
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("Image") {
+                    if let url = selectedImageURL {
+                        AsyncImage(url: url) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            ProgressView()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 150)
+                        .clipped()
+                        .cornerRadius(8)
+                    } else if let recipeId = recipe.id {
+                        AsyncImage(url: currentImageURL(recipeId: recipeId)) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Image(systemName: "photo")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 100)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 150)
+                        .clipped()
+                        .cornerRadius(8)
+                    }
+
+                    #if !os(Android)
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Label("Change Image", systemImage: "photo.on.rectangle")
+                    }
+                    .onChange(of: selectedPhoto) { _, newValue in
+                        Task {
+                            guard let item = newValue else { return }
+                            if let data = try? await item.loadTransferable(type: Data.self) {
+                                selectedImageData = data
+                                // Save to temp file for preview
+                                let tempDir = FileManager.default.temporaryDirectory
+                                let tempFile = tempDir.appendingPathComponent("recipe_preview_\(UUID().uuidString).jpg")
+                                try? data.write(to: tempFile)
+                                selectedImageURL = tempFile
+                            }
+                        }
+                    }
+                    #endif
+                }
+
                 Section("Details") {
                     TextField("Name", text: $name)
                     TextField("Description", text: $description)
@@ -146,6 +199,19 @@ struct EditRecipeView: View {
         }
     }
 
+    func currentImageURL(recipeId: String) -> URL? {
+        if recipeVM.isLocalMode {
+            if let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                return URL(fileURLWithPath: path)
+            }
+            return nil
+        }
+        if let cachedPath = ImageCacheService.shared.cachedImagePath(recipeId: recipeId, imageType: "min-original.webp") {
+            return URL(fileURLWithPath: cachedPath)
+        }
+        return URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))
+    }
+
     func populateFields() {
         name = recipe.name ?? ""
         description = recipe.description ?? ""
@@ -215,6 +281,13 @@ struct EditRecipeView: View {
         )
 
         let success = await recipeVM.updateRecipe(slug: recipe.slug ?? "", data: updated)
+
+        // Upload image if user selected a new one
+        if success, let imageData = selectedImageData {
+            let uploadSlug = recipeVM.selectedRecipe?.slug ?? recipe.slug ?? ""
+            let _ = await recipeVM.uploadImage(slug: uploadSlug, imageData: imageData)
+        }
+
         isSaving = false
         if success {
             isPresented = false
