@@ -32,47 +32,45 @@ public struct ContentView: View {
 
     public var body: some View {
         Group {
-            if authVM.isAuthenticated {
-                if horizontalSizeClass == .regular {
-                    iPadLayout
-                        .task {
-                            let vm = authVM
-                            MealieAPI.shared.onUnauthorized = {
-                                vm.logout()
-                            }
-                            recipeVM.isLocalMode = authVM.isLocalMode
-                            if authVM.isLocalMode {
-                                recipeVM.loadFavorites(user: nil)
-                            } else {
-                                await authVM.loadCurrentUser()
-                                recipeVM.loadFavorites(user: authVM.currentUser)
-                                recipeVM.loadOfflineIds()
-                            }
-                        }
-                } else {
-                    mainTabView
-                        .task {
-                            let vm = authVM
-                            MealieAPI.shared.onUnauthorized = {
-                                vm.logout()
-                            }
-                            recipeVM.isLocalMode = authVM.isLocalMode
-                            if authVM.isLocalMode {
-                                recipeVM.loadFavorites(user: nil)
-                            } else {
-                                await authVM.loadCurrentUser()
-                                recipeVM.loadFavorites(user: authVM.currentUser)
-                                recipeVM.loadOfflineIds()
-                            }
-                        }
+            if horizontalSizeClass == .regular {
+                iPadLayout
+            } else {
+                mainTabView
+            }
+        }
+        .task {
+            let vm = authVM
+            MealieAPI.shared.onUnauthorized = {
+                vm.logout()
+            }
+            recipeVM.isLocalMode = !authVM.isServerConnected
+            if authVM.isServerConnected {
+                await authVM.loadCurrentUser()
+                recipeVM.loadFavorites(user: authVM.currentUser)
+                recipeVM.loadOfflineIds()
+            } else {
+                recipeVM.loadFavorites(user: nil)
+            }
+        }
+        .onChange(of: authVM.isServerConnected) { _, connected in
+            recipeVM.isLocalMode = !connected
+            if connected {
+                Task {
+                    await authVM.loadCurrentUser()
+                    recipeVM.loadFavorites(user: authVM.currentUser)
+                    recipeVM.loadOfflineIds()
+                    await recipeVM.loadRecipes(reset: true)
                 }
             } else {
-                LoginView(authVM: authVM)
+                if selectedTab == .mealPlan || selectedTab == .shopping {
+                    selectedTab = .recipes
+                }
+                recipeVM.loadFavorites(user: nil)
+                Task { await recipeVM.loadRecipes(reset: true) }
             }
         }
         .preferredColorScheme(resolvedColorScheme)
         .onOpenURL { url in
-            guard authVM.isAuthenticated else { return }
             let recipeURL: String
             if url.scheme == "mealie" {
                 // iOS: mealie://import?url=<encoded_url>
@@ -99,7 +97,7 @@ public struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 let hadPending = checkPendingShareImport()
-                if !hadPending && authVM.isAuthenticated {
+                if !hadPending && authVM.isServerConnected {
                     // Refresh recipe list when returning to foreground
                     Task { await recipeVM.loadRecipes(reset: true) }
                 }
@@ -111,8 +109,8 @@ public struct ContentView: View {
     #if !os(Android)
     @discardableResult
     private func checkPendingShareImport() -> Bool {
-        print("[ShareImport] checkPendingShareImport called, isAuthenticated: \(authVM.isAuthenticated)")
-        guard authVM.isAuthenticated else { return false }
+        print("[ShareImport] checkPendingShareImport called, isServerConnected: \(authVM.isServerConnected)")
+        guard authVM.isServerConnected else { return false }
         let appGroupID = "group.com.jackabee.mealie"
         let pendingURLKey = "pendingImportURL"
         guard let defaults = UserDefaults(suiteName: appGroupID) else {
@@ -124,15 +122,18 @@ public struct ContentView: View {
         guard let urlString = urlString, !urlString.isEmpty else {
             return false
         }
-        // Clear immediately to prevent re-processing
-        defaults.removeObject(forKey: pendingURLKey)
-        defaults.synchronize()
         print("[ShareImport] importing URL: \(urlString)")
         recipeVM.importURL = urlString
         selectedTab = .recipes
         Task {
-            await recipeVM.importFromURL()
-            print("[ShareImport] importFromURL completed, message: \(recipeVM.importMessage)")
+            let success = await recipeVM.importFromURL()
+            if success {
+                defaults.removeObject(forKey: pendingURLKey)
+                defaults.synchronize()
+                print("[ShareImport] cleared pending URL after successful import")
+            } else {
+                print("[ShareImport] import failed, keeping URL for retry")
+            }
         }
         return true
     }
@@ -148,7 +149,7 @@ public struct ContentView: View {
                 Label("Recipes", systemImage: "book")
             }
 
-            if !authVM.isLocalMode {
+            if authVM.isServerConnected {
                 NavigationStack {
                     MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)
                 }
@@ -178,7 +179,7 @@ public struct ContentView: View {
 
     var iPadLayout: some View {
         HStack(spacing: 0) {
-            SidebarView(selectedTab: $selectedTab, authVM: authVM, isLocalMode: authVM.isLocalMode)
+            SidebarView(selectedTab: $selectedTab, authVM: authVM)
 
             Divider()
 

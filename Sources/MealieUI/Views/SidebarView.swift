@@ -10,14 +10,34 @@ import MealieModel
 struct SidebarView: View {
     @Binding var selectedTab: AppTab
     @Bindable var authVM: AuthViewModel
-    var isLocalMode: Bool = false
     @State var showLogoutAlert = false
+    @State var showLoginSheet = false
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // User header
-            if isLocalMode {
+            if authVM.isServerConnected {
+                if let user = authVM.currentUser {
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(user.fullName ?? user.username ?? "User")
+                                .font(.subheadline)
+                                .bold()
+                                .lineLimit(1)
+                            Text(user.email ?? "")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+            } else if authVM.isLocalMode {
                 HStack(spacing: 10) {
                     Image(systemName: "internaldrive")
                         .font(.system(size: 28))
@@ -35,17 +55,17 @@ struct SidebarView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-            } else if let user = authVM.currentUser {
+            } else {
                 HStack(spacing: 10) {
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 32))
+                    Image(systemName: "fork.knife.circle.fill")
+                        .font(.system(size: 28))
                         .foregroundStyle(Color.accentColor)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(user.fullName ?? user.username ?? "User")
+                        Text("Mealie")
                             .font(.subheadline)
                             .bold()
                             .lineLimit(1)
-                        Text(user.email ?? "")
+                        Text("Connect to get started")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -60,7 +80,7 @@ struct SidebarView: View {
             // Tab buttons
             VStack(spacing: 4) {
                 sidebarButton(tab: .recipes, icon: "book", label: "Recipes")
-                if !isLocalMode {
+                if authVM.isServerConnected {
                     sidebarButton(tab: .mealPlan, icon: "calendar", label: "Meal Plan")
                     sidebarButton(tab: .shopping, icon: "cart", label: "Shopping")
                 }
@@ -73,23 +93,7 @@ struct SidebarView: View {
 
             // Sign out / Connect
             Divider()
-            if isLocalMode {
-                Button(action: { showLogoutAlert = true }) {
-                    Label("Connect to Server", systemImage: "server.rack")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.accentColor)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                }
-                .alert("Connect to Server", isPresented: $showLogoutAlert) {
-                    Button("Cancel", role: .cancel) {}
-                    Button("Continue") {
-                        authVM.logout()
-                    }
-                } message: {
-                    Text("You'll be taken to the login screen. Your local recipes will be preserved.")
-                }
-            } else {
+            if authVM.isServerConnected {
                 Button(action: { showLogoutAlert = true }) {
                     Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                         .font(.subheadline)
@@ -97,18 +101,55 @@ struct SidebarView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                 }
-                .alert("Sign Out", isPresented: $showLogoutAlert) {
-                    Button("Cancel", role: .cancel) {}
-                    Button("Sign Out", role: .destructive) {
-                        authVM.logout()
+            } else {
+                Button(action: {
+                    if authVM.isLocalMode {
+                        showLogoutAlert = true
+                    } else {
+                        authVM.showServerSetup = true
+                        authVM.errorMessage = ""
+                        authVM.serverInfo = nil
+                        showLoginSheet = true
                     }
-                } message: {
-                    Text("Are you sure you want to sign out?")
+                }) {
+                    Label("Connect to Server", systemImage: "server.rack")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                 }
             }
         }
         .frame(width: 240)
         .background(AdaptiveColors.color(.sidebar, isDark: colorScheme == .dark))
+        .alert(authVM.isLocalMode ? "Connect to Server" : "Sign Out", isPresented: $showLogoutAlert) {
+            Button("Cancel", role: .cancel) {}
+            if authVM.isLocalMode {
+                Button("Continue") {
+                    authVM.showServerSetup = true
+                    authVM.errorMessage = ""
+                    authVM.serverInfo = nil
+                    showLoginSheet = true
+                }
+            } else {
+                Button("Sign Out", role: .destructive) {
+                    authVM.logout()
+                }
+            }
+        } message: {
+            Text(authVM.isLocalMode
+                 ? "Your local recipes will be preserved."
+                 : "Are you sure you want to sign out?")
+        }
+        .sheet(isPresented: $showLoginSheet) {
+            LoginView(authVM: authVM, hideLocalMode: authVM.isLocalMode)
+        }
+        .onChange(of: authVM.isServerConnected) { _, connected in
+            if connected { showLoginSheet = false }
+        }
+        .onChange(of: authVM.isAuthenticated) { _, authenticated in
+            if authenticated { showLoginSheet = false }
+        }
     }
 
     func sidebarButton(tab: AppTab, icon: String, label: String) -> some View {

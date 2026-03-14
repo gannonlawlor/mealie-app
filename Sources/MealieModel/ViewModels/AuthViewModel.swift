@@ -11,6 +11,7 @@ private let logger = Log(category: "Auth")
     public var isLoading: Bool = false
     public var errorMessage: String = ""
     public var isAuthenticated: Bool = false
+    public var isServerConnected: Bool = false
     public var currentUser: User? = nil
     public var serverInfo: AppInfo? = nil
     public var showServerSetup: Bool = true
@@ -25,6 +26,7 @@ private let logger = Log(category: "Auth")
             showServerSetup = false
         } else if AuthService.shared.restoreSession() {
             isAuthenticated = true
+            isServerConnected = true
             showServerSetup = false
             serverURL = AuthService.shared.savedServerURL ?? ""
         }
@@ -73,6 +75,7 @@ private let logger = Log(category: "Auth")
             )
 
             isAuthenticated = true
+            isServerConnected = true
             isLoading = false
         } catch let error as APIError {
             switch error {
@@ -111,6 +114,7 @@ private let logger = Log(category: "Auth")
             OfflineRecipeStore.shared.clearAll()
         }
         isAuthenticated = false
+        isServerConnected = false
         showServerSetup = true
         currentUser = nil
         email = ""

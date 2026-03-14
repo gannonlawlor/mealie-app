@@ -9,6 +9,7 @@ import MealieModel
 
 struct LoginView: View {
     @Bindable var authVM: AuthViewModel
+    var hideLocalMode: Bool = false
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -93,34 +94,36 @@ struct LoginView: View {
                 }
             }
 
-            // Divider with "or"
-            HStack {
-                Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
-                Text("or")
+            if !hideLocalMode {
+                // Divider with "or"
+                HStack {
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                    Text("or")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                }
+                .padding(.vertical, 8)
+
+                Button(action: {
+                    authVM.enterLocalMode()
+                }) {
+                    Text("Use Without Server")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
+                .foregroundStyle(Color.accentColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.accentColor, lineWidth: 1.5)
+                )
+                .cornerRadius(10)
+
+                Text("Save recipes locally on your device. You can connect to a server later.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.vertical, 8)
-
-            Button(action: {
-                authVM.enterLocalMode()
-            }) {
-                Text("Use Without Server")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-            }
-            .foregroundStyle(Color.accentColor)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.accentColor, lineWidth: 1.5)
-            )
-            .cornerRadius(10)
-
-            Text("Save recipes locally on your device. You can connect to a server later.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
     }
 

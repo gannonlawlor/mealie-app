@@ -12,6 +12,7 @@ struct SettingsView: View {
     @Bindable var shoppingVM: ShoppingViewModel
     var onThemeChange: ((AppTheme) -> Void)? = nil
     @State var showLogoutAlert = false
+    @State var showLoginSheet = false
     @State var selectedTheme: AppTheme = AppSettings.shared.theme
     @State var keepScreenAwake: Bool = AppSettings.shared.keepScreenAwake
     @State var addToReminders: Bool = AppSettings.shared.addToReminders
@@ -43,7 +44,7 @@ struct SettingsView: View {
                 Text("Prevents the screen from dimming while viewing a recipe.")
             }
 
-            if !authVM.isLocalMode {
+            if authVM.isServerConnected {
                 Section {
                     Picker("Default Shopping List", selection: $defaultListId) {
                         Text("Ask Every Time").tag("")
@@ -108,7 +109,9 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-            } else {
+            }
+
+            if authVM.isServerConnected {
                 // User Profile Section
                 if let user = authVM.currentUser {
                     Section("Profile") {
@@ -169,11 +172,7 @@ struct SettingsView: View {
 
             // Actions
             Section {
-                if authVM.isLocalMode {
-                    Button(action: { showLogoutAlert = true }) {
-                        Label("Connect to Server", systemImage: "server.rack")
-                    }
-                } else {
+                if authVM.isServerConnected {
                     Button(action: {
                         Task { await authVM.loadCurrentUser() }
                     }) {
@@ -183,22 +182,44 @@ struct SettingsView: View {
                     Button(role: .destructive, action: { showLogoutAlert = true }) {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
+                } else {
+                    Button(action: {
+                        if authVM.isLocalMode {
+                            showLogoutAlert = true
+                        } else {
+                            authVM.showServerSetup = true
+                            authVM.errorMessage = ""
+                            authVM.serverInfo = nil
+                            showLoginSheet = true
+                        }
+                    }) {
+                        Label("Connect to Server", systemImage: "server.rack")
+                    }
                 }
             }
         }
         .navigationTitle("Settings")
         .alert(authVM.isLocalMode ? "Connect to Server" : "Sign Out", isPresented: $showLogoutAlert) {
             Button("Cancel", role: .cancel) {}
-            Button(authVM.isLocalMode ? "Continue" : "Sign Out", role: authVM.isLocalMode ? nil : .destructive) {
-                authVM.logout()
+            if authVM.isLocalMode {
+                Button("Continue") {
+                    authVM.showServerSetup = true
+                    authVM.errorMessage = ""
+                    authVM.serverInfo = nil
+                    showLoginSheet = true
+                }
+            } else {
+                Button("Sign Out", role: .destructive) {
+                    authVM.logout()
+                }
             }
         } message: {
             Text(authVM.isLocalMode
-                 ? "You'll be taken to the login screen. Your local recipes will be preserved."
+                 ? "Your local recipes will be preserved."
                  : "Are you sure you want to sign out?")
         }
         .task {
-            if !authVM.isLocalMode {
+            if authVM.isServerConnected {
                 if authVM.serverInfo == nil {
                     do {
                         authVM.serverInfo = try await MealieAPI.shared.getAppInfo()
@@ -210,6 +231,15 @@ struct SettingsView: View {
                     await shoppingVM.loadShoppingLists()
                 }
             }
+        }
+        .sheet(isPresented: $showLoginSheet) {
+            LoginView(authVM: authVM, hideLocalMode: authVM.isLocalMode)
+        }
+        .onChange(of: authVM.isServerConnected) { _, connected in
+            if connected { showLoginSheet = false }
+        }
+        .onChange(of: authVM.isAuthenticated) { _, authenticated in
+            if authenticated { showLoginSheet = false }
         }
     }
 }

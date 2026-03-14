@@ -228,8 +228,9 @@ private let logger = Log(category: "Recipes")
         }
     }
 
-    public func importFromURL() async {
-        guard !importURL.isEmpty else { return }
+    @discardableResult
+    public func importFromURL() async -> Bool {
+        guard !importURL.isEmpty else { return false }
         isImporting = true
         importMessage = ""
 
@@ -244,7 +245,7 @@ private let logger = Log(category: "Recipes")
                     duplicateMatchedByURL = true
                     showDuplicateAlert = true
                     isImporting = false
-                    return
+                    return true
                 }
                 if let name = recipe.name, let existing = LocalRecipeStore.shared.findRecipesByName(name).first {
                     duplicateRecipe = existing
@@ -252,7 +253,7 @@ private let logger = Log(category: "Recipes")
                     duplicateMatchedByURL = false
                     showDuplicateAlert = true
                     isImporting = false
-                    return
+                    return true
                 }
 
                 LocalRecipeStore.shared.saveRecipe(recipe)
@@ -260,6 +261,7 @@ private let logger = Log(category: "Recipes")
                 importURL = ""
                 isImporting = false
                 await loadRecipes(reset: true)
+                return true
             } catch let error as RecipeParseError {
                 switch error {
                 case .invalidURL:
@@ -273,12 +275,13 @@ private let logger = Log(category: "Recipes")
                 }
                 logger.error("Local import error: \(error)")
                 isImporting = false
+                return false
             } catch {
                 importMessage = "Failed to import recipe."
                 logger.error("Local import error: \(error)")
                 isImporting = false
+                return false
             }
-            return
         }
 
         do {
@@ -289,10 +292,12 @@ private let logger = Log(category: "Recipes")
             // Brief delay so the server indexes the new recipe before we fetch the list
             try? await Task.sleep(nanoseconds: 500_000_000)
             await loadRecipes(reset: true)
+            return true
         } catch {
             importMessage = "Failed to import recipe. Check the URL."
             logger.error("Failed to import recipe: \(error)")
             isImporting = false
+            return false
         }
     }
 
