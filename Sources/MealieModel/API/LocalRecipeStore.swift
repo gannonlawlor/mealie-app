@@ -7,23 +7,57 @@ public class LocalRecipeStore: @unchecked Sendable {
     public static let shared = LocalRecipeStore()
 
     private let directoryName = "mealie_local"
-    private let recipesFilename = "recipes.json"
     private let imagesDirectory = "images"
+    private let favoritesFilename = "favorites.json"
+    private let legacyRecipesFilename = "recipes.json"
+    private let legacyFavoritesKey = "mealie_local_favorites"
 
-    private init() {}
+    private var customRootDirectory: URL?
+
+    private init() {
+        migrateIfNeeded()
+    }
+
+    // MARK: - Directory Configuration
+
+    public func setRootDirectory(_ url: URL?) {
+        customRootDirectory = url
+        if url != nil {
+            // Ensure the directory exists
+            try? FileManager.default.createDirectory(at: url!, withIntermediateDirectories: true)
+            let imgDir = url!.appendingPathComponent(imagesDirectory)
+            try? FileManager.default.createDirectory(at: imgDir, withIntermediateDirectories: true)
+        }
+    }
+
+    public func rootDirectory() -> URL? {
+        if let custom = customRootDirectory {
+            return custom
+        }
+        return defaultDirectory()
+    }
 
     // MARK: - Recipes
 
     public func loadAllRecipes() -> [Recipe] {
         guard let dir = storeDirectory() else { return [] }
-        let fileURL = dir.appendingPathComponent(recipesFilename)
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        do {
-            return try JSONDecoder().decode([Recipe].self, from: data)
-        } catch {
-            logger.error("Failed to decode local recipes: \(error)")
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
             return []
         }
+        var recipes: [Recipe] = []
+        for file in files {
+            guard file.lastPathComponent.hasPrefix("recipe_"),
+                  file.pathExtension == "json" else { continue }
+            guard let data = try? Data(contentsOf: file) else { continue }
+            do {
+                let recipe = try JSONDecoder().decode(Recipe.self, from: data)
+                recipes.append(recipe)
+            } catch {
+                logger.error("Failed to decode recipe file \(file.lastPathComponent): \(error)")
+            }
+        }
+        return recipes
     }
 
     public func loadRecipe(slug: String) -> Recipe? {
@@ -31,19 +65,20 @@ public class LocalRecipeStore: @unchecked Sendable {
     }
 
     public func saveRecipe(_ recipe: Recipe) {
-        var recipes = loadAllRecipes()
-        if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
-            recipes[index] = recipe
-        } else {
-            recipes.append(recipe)
+        guard let dir = storeDirectory(), let id = recipe.id else { return }
+        let fileURL = dir.appendingPathComponent("recipe_\(id).json")
+        do {
+            let data = try JSONEncoder().encode(recipe)
+            try data.write(to: fileURL)
+        } catch {
+            logger.error("Failed to save recipe \(id): \(error)")
         }
-        saveAllRecipes(recipes)
     }
 
     public func deleteRecipe(id: String) {
-        var recipes = loadAllRecipes()
-        recipes.removeAll { $0.id == id }
-        saveAllRecipes(recipes)
+        guard let dir = storeDirectory() else { return }
+        let fileURL = dir.appendingPathComponent("recipe_\(id).json")
+        try? FileManager.default.removeItem(at: fileURL)
         deleteImage(recipeId: id)
     }
 
@@ -95,17 +130,30 @@ public class LocalRecipeStore: @unchecked Sendable {
         try? FileManager.default.removeItem(at: filePath)
     }
 
-    // MARK: - Favorites
-
-    private let favoritesKey = "mealie_local_favorites"
+    // MARK: - Favorites (file-based)
 
     public func loadFavorites() -> Set<String> {
-        let array = (UserDefaults.standard.object(forKey: favoritesKey) as? [String]) ?? []
-        return Set(array)
+        guard let dir = storeDirectory() else { return [] }
+        let fileURL = dir.appendingPathComponent(favoritesFilename)
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        do {
+            let array = try JSONDecoder().decode([String].self, from: data)
+            return Set(array)
+        } catch {
+            logger.error("Failed to decode favorites: \(error)")
+            return []
+        }
     }
 
     public func saveFavorites(_ favorites: Set<String>) {
-        UserDefaults.standard.set(Array(favorites), forKey: favoritesKey)
+        guard let dir = storeDirectory() else { return }
+        let fileURL = dir.appendingPathComponent(favoritesFilename)
+        do {
+            let data = try JSONEncoder().encode(Array(favorites))
+            try data.write(to: fileURL)
+        } catch {
+            logger.error("Failed to save favorites: \(error)")
+        }
     }
 
     public func addFavorite(slug: String) {
@@ -141,12 +189,37 @@ public class LocalRecipeStore: @unchecked Sendable {
     }
 
     public func recipeCount() -> Int {
-        loadAllRecipes().count
+        guard let dir = storeDirectory() else { return 0 }
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+            return 0
+        }
+        return files.filter { $0.lastPathComponent.hasPrefix("recipe_") && $0.pathExtension == "json" }.count
+    }
+
+    // MARK: - Migration
+
+    public func copyAllFiles(to destination: URL) {
+        guard let dir = storeDirectory() else { return }
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for file in files {
+            let destFile = destination.appendingPathComponent(file.lastPathComponent)
+            if file.lastPathComponent == imagesDirectory {
+                // Copy entire images directory
+                if fm.fileExists(atPath: destFile.path) {
+                    try? fm.removeItem(at: destFile)
+                }
+                try? fm.copyItem(at: file, to: destFile)
+            } else if file.pathExtension == "json" {
+                try? fm.copyItem(at: file, to: destFile)
+            }
+        }
     }
 
     // MARK: - Private
 
-    private func storeDirectory() -> URL? {
+    private func defaultDirectory() -> URL? {
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }
@@ -155,14 +228,62 @@ public class LocalRecipeStore: @unchecked Sendable {
         return dir
     }
 
-    private func saveAllRecipes(_ recipes: [Recipe]) {
-        guard let dir = storeDirectory() else { return }
+    private func storeDirectory() -> URL? {
+        if let custom = customRootDirectory {
+            return custom
+        }
+        return defaultDirectory()
+    }
+
+    private func migrateIfNeeded() {
+        migrateFromSingleFile()
+        migrateFavoritesFromUserDefaults()
+    }
+
+    private func migrateFromSingleFile() {
+        guard let dir = defaultDirectory() else { return }
+        let legacyFile = dir.appendingPathComponent(legacyRecipesFilename)
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: legacyFile.path) else { return }
+
+        logger.info("Migrating from single recipes.json to per-recipe files")
+        guard let data = try? Data(contentsOf: legacyFile) else {
+            try? fm.removeItem(at: legacyFile)
+            return
+        }
         do {
-            let data = try JSONEncoder().encode(recipes)
-            let fileURL = dir.appendingPathComponent(recipesFilename)
-            try data.write(to: fileURL)
+            let recipes = try JSONDecoder().decode([Recipe].self, from: data)
+            for recipe in recipes {
+                guard let id = recipe.id else { continue }
+                let fileURL = dir.appendingPathComponent("recipe_\(id).json")
+                let recipeData = try JSONEncoder().encode(recipe)
+                try recipeData.write(to: fileURL)
+            }
+            try fm.removeItem(at: legacyFile)
+            logger.info("Migration complete: \(recipes.count) recipes migrated")
         } catch {
-            logger.error("Failed to save local recipes: \(error)")
+            logger.error("Migration from recipes.json failed: \(error)")
+        }
+    }
+
+    private func migrateFavoritesFromUserDefaults() {
+        guard let dir = defaultDirectory() else { return }
+        let favFile = dir.appendingPathComponent(favoritesFilename)
+        let fm = FileManager.default
+
+        // Only migrate if file doesn't exist yet and UserDefaults has data
+        guard !fm.fileExists(atPath: favFile.path) else { return }
+        let array = (UserDefaults.standard.object(forKey: legacyFavoritesKey) as? [String]) ?? []
+        guard !array.isEmpty else { return }
+
+        logger.info("Migrating favorites from UserDefaults to file")
+        do {
+            let data = try JSONEncoder().encode(array)
+            try data.write(to: favFile)
+            UserDefaults.standard.removeObject(forKey: legacyFavoritesKey)
+            logger.info("Favorites migration complete: \(array.count) favorites")
+        } catch {
+            logger.error("Favorites migration failed: \(error)")
         }
     }
 }

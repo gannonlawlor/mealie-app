@@ -18,6 +18,10 @@ struct SettingsView: View {
     @State var addToReminders: Bool = AppSettings.shared.addToReminders
     @State var localGroceryList: Bool = AppSettings.shared.localGroceryList
     @State var defaultListId: String = AppSettings.shared.defaultShoppingListId ?? ""
+    #if !os(Android)
+    @State var iCloudSync: Bool = AppSettings.shared.iCloudSync
+    @State var iCloudAvailable: Bool = false
+    #endif
 
     var body: some View {
         List {
@@ -109,6 +113,27 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                #if !os(Android)
+                Section {
+                    Toggle("iCloud Sync", isOn: $iCloudSync)
+                        .disabled(!iCloudAvailable)
+                        .onChange(of: iCloudSync) { _, newValue in
+                            AppSettings.shared.iCloudSync = newValue
+                            if newValue {
+                                ICloudSyncManager.shared.enableICloudSync()
+                            } else {
+                                ICloudSyncManager.shared.disableICloudSync()
+                            }
+                        }
+                } footer: {
+                    if iCloudAvailable {
+                        Text("Sync your local recipes across all your iOS devices using iCloud.")
+                    } else {
+                        Text("iCloud is not available. Sign in to iCloud in Settings to enable sync.")
+                    }
+                }
+                #endif
             }
 
             if authVM.isServerConnected {
@@ -231,6 +256,9 @@ struct SettingsView: View {
                     await shoppingVM.loadShoppingLists()
                 }
             }
+            #if !os(Android)
+            iCloudAvailable = ICloudSyncManager.shared.isICloudAvailable()
+            #endif
         }
         .sheet(isPresented: $showLoginSheet) {
             LoginView(authVM: authVM, hideLocalMode: authVM.isLocalMode)

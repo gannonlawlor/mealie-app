@@ -16,6 +16,7 @@ public class AppSettings: @unchecked Sendable {
     private let localGroceryListKey = "mealie_local_grocery_list"
     private let defaultShoppingListIdKey = "mealie_default_shopping_list_id"
     private let defaultShoppingListNameKey = "mealie_default_shopping_list_name"
+    private let iCloudSyncKey = "mealie_icloud_sync"
 
     private init() {}
 
@@ -55,5 +56,10 @@ public class AppSettings: @unchecked Sendable {
     public var defaultShoppingListName: String? {
         get { UserDefaults.standard.string(forKey: defaultShoppingListNameKey) }
         set { UserDefaults.standard.set(newValue, forKey: defaultShoppingListNameKey) }
+    }
+
+    public var iCloudSync: Bool {
+        get { UserDefaults.standard.bool(forKey: iCloudSyncKey) }
+        set { UserDefaults.standard.set(newValue, forKey: iCloudSyncKey) }
     }
 }
