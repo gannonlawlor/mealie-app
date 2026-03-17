@@ -50,14 +50,6 @@ public struct ContentView: View {
                 recipeVM.loadOfflineIds()
             } else {
                 recipeVM.loadFavorites(user: nil)
-                #if !os(Android)
-                if AppSettings.shared.iCloudSync {
-                    ICloudSyncManager.shared.enableICloudSync()
-                    ICloudSyncManager.shared.startMonitoring {
-                        Task { await recipeVM.loadRecipes(reset: true) }
-                    }
-                }
-                #endif
             }
         }
         .onChange(of: authVM.isServerConnected) { _, connected in
@@ -107,10 +99,6 @@ public struct ContentView: View {
                 let hadPending = checkPendingShareImport()
                 if !hadPending && authVM.isServerConnected {
                     // Refresh recipe list when returning to foreground
-                    Task { await recipeVM.loadRecipes(reset: true) }
-                }
-                // Reload local recipes on foreground if iCloud sync is active
-                if !authVM.isServerConnected && AppSettings.shared.iCloudSync {
                     Task { await recipeVM.loadRecipes(reset: true) }
                 }
             }

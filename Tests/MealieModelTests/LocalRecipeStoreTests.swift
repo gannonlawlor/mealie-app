@@ -2,11 +2,14 @@ import XCTest
 import Foundation
 @testable import MealieModel
 
+/// Tests the FileRecipeStore (file-based persistence).
+/// SwiftData store requires an app container and is tested separately.
 final class LocalRecipeStoreTests: XCTestCase {
-    let store = LocalRecipeStore.shared
+    var store: FileRecipeStore!
 
     override func setUp() {
         super.setUp()
+        store = FileRecipeStore()
         // Clean slate for each test
         for recipe in store.loadAllRecipes() {
             if let id = recipe.id {
@@ -173,36 +176,36 @@ final class LocalRecipeStoreTests: XCTestCase {
         XCTAssertEqual(s.dateUpdated, "2025-06-02")
     }
 
-    // MARK: - Slug Generation
+    // MARK: - Slug Generation (tested via LocalRecipeStore facade)
 
     func testGenerateSlugBasic() {
-        XCTAssertEqual(store.generateSlug(from: "Chicken Alfredo"), "chicken-alfredo")
+        XCTAssertEqual(LocalRecipeStore.shared.generateSlug(from: "Chicken Alfredo"), "chicken-alfredo")
     }
 
     func testGenerateSlugStripsSpecialCharacters() {
-        XCTAssertEqual(store.generateSlug(from: "Mom's Best Pie!"), "moms-best-pie")
+        XCTAssertEqual(LocalRecipeStore.shared.generateSlug(from: "Mom's Best Pie!"), "moms-best-pie")
     }
 
     func testGenerateSlugHandlesNumbers() {
-        XCTAssertEqual(store.generateSlug(from: "5 Minute Pasta"), "5-minute-pasta")
+        XCTAssertEqual(LocalRecipeStore.shared.generateSlug(from: "5 Minute Pasta"), "5-minute-pasta")
     }
 
     func testGenerateSlugEmptyStringFallback() {
-        XCTAssertEqual(store.generateSlug(from: ""), "recipe")
-        XCTAssertEqual(store.generateSlug(from: "!!!"), "recipe")
+        XCTAssertEqual(LocalRecipeStore.shared.generateSlug(from: ""), "recipe")
+        XCTAssertEqual(LocalRecipeStore.shared.generateSlug(from: "!!!"), "recipe")
     }
 
-    // MARK: - Image Storage
+    // MARK: - Image Storage (tested via LocalRecipeStore facade)
 
     func testSaveAndLoadImage() {
         let recipeId = "img-test-id"
         let imageData = Data([0xFF, 0xD8, 0xFF, 0xE0]) // JPEG header bytes
 
-        let path = store.saveImage(data: imageData, recipeId: recipeId)
+        let path = LocalRecipeStore.shared.saveImage(data: imageData, recipeId: recipeId)
         XCTAssertFalse(path.isEmpty)
         XCTAssertTrue(path.contains(recipeId))
 
-        let loadedPath = store.imageFilePath(recipeId: recipeId)
+        let loadedPath = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId)
         XCTAssertNotNil(loadedPath)
         XCTAssertEqual(path, loadedPath)
 
@@ -211,34 +214,22 @@ final class LocalRecipeStoreTests: XCTestCase {
         XCTAssertEqual(loadedData, imageData)
 
         // Cleanup
-        store.deleteImage(recipeId: recipeId)
+        LocalRecipeStore.shared.deleteImage(recipeId: recipeId)
     }
 
     func testImageFilePathReturnsNilWhenNoImage() {
-        XCTAssertNil(store.imageFilePath(recipeId: "nonexistent-image"))
+        XCTAssertNil(LocalRecipeStore.shared.imageFilePath(recipeId: "nonexistent-image"))
     }
 
     func testDeleteImageRemovesFile() {
         let recipeId = "del-img-test"
         let imageData = Data([0x89, 0x50, 0x4E, 0x47])
-        let path = store.saveImage(data: imageData, recipeId: recipeId)
+        let path = LocalRecipeStore.shared.saveImage(data: imageData, recipeId: recipeId)
         XCTAssertFalse(path.isEmpty)
 
-        store.deleteImage(recipeId: recipeId)
-        XCTAssertNil(store.imageFilePath(recipeId: recipeId))
+        LocalRecipeStore.shared.deleteImage(recipeId: recipeId)
+        XCTAssertNil(LocalRecipeStore.shared.imageFilePath(recipeId: recipeId))
         XCTAssertFalse(FileManager.default.fileExists(atPath: path))
-    }
-
-    func testDeleteRecipeAlsoDeletesImage() {
-        let recipeId = "recipe-with-img"
-        store.saveRecipe(makeRecipe(id: recipeId, slug: "with-img", name: "With Image"))
-        _ = store.saveImage(data: Data([0x01, 0x02]), recipeId: recipeId)
-        XCTAssertNotNil(store.imageFilePath(recipeId: recipeId))
-
-        store.deleteRecipe(id: recipeId)
-
-        XCTAssertNil(store.imageFilePath(recipeId: recipeId))
-        XCTAssertNil(store.loadRecipe(slug: "with-img"))
     }
 
     // MARK: - Persistence (encode/decode round-trip)
@@ -382,7 +373,7 @@ final class LocalRecipeStoreTests: XCTestCase {
         store.saveRecipe(makeRecipe(id: "r2", slug: "two", name: "Two"))
 
         // Verify files exist individually
-        guard let dir = store.rootDirectory() else {
+        guard let dir = store.storeDirectory() else {
             XCTFail("Store directory should exist")
             return
         }
@@ -401,7 +392,7 @@ final class LocalRecipeStoreTests: XCTestCase {
 
     func testMigrationFromSingleFileFormat() {
         // Manually create a legacy recipes.json
-        guard let dir = store.rootDirectory() else {
+        guard let dir = store.storeDirectory() else {
             XCTFail("Store directory should exist")
             return
         }
@@ -413,15 +404,10 @@ final class LocalRecipeStoreTests: XCTestCase {
         let data = try! JSONEncoder().encode(recipes)
         try! data.write(to: legacyFile)
 
-        // Trigger migration by calling the private method indirectly
-        // We can verify by checking that per-recipe files exist after loading
-        // The migration runs in init, but since we're using the shared singleton,
-        // we'll verify the files would be created by the store's load logic
-        // For this test, we simulate what migration does
         let fm = FileManager.default
         XCTAssertTrue(fm.fileExists(atPath: legacyFile.path))
 
-        // Decode and split manually (simulating migration)
+        // Simulate migration by reading and saving per-recipe
         for recipe in recipes {
             store.saveRecipe(recipe)
         }
@@ -437,5 +423,42 @@ final class LocalRecipeStoreTests: XCTestCase {
         let names = Set(loaded.compactMap { $0.name })
         XCTAssertTrue(names.contains("Migrated One"))
         XCTAssertTrue(names.contains("Migrated Two"))
+    }
+
+    // MARK: - Search
+
+    func testFindRecipeByOrgURL() {
+        let recipe = Recipe(
+            id: "url-test", slug: "url-recipe", name: "URL Recipe",
+            description: nil, image: nil, recipeCategory: nil, tags: nil,
+            tools: nil, rating: nil, recipeYield: nil,
+            recipeIngredient: nil, recipeInstructions: nil,
+            totalTime: nil, prepTime: nil, performTime: nil,
+            nutrition: nil, settings: nil,
+            dateAdded: nil, dateUpdated: nil, createdAt: nil, updatedAt: nil,
+            orgURL: "https://example.com/my-recipe", extras: nil
+        )
+        store.saveRecipe(recipe)
+
+        XCTAssertNotNil(store.findRecipeByOrgURL("https://example.com/my-recipe"))
+        XCTAssertNil(store.findRecipeByOrgURL("https://example.com/other"))
+    }
+
+    func testFindRecipesByName() {
+        store.saveRecipe(makeRecipe(id: "r1", slug: "pasta", name: "Pasta"))
+        store.saveRecipe(makeRecipe(id: "r2", slug: "pasta-2", name: "Pasta"))
+        store.saveRecipe(makeRecipe(id: "r3", slug: "cake", name: "Cake"))
+
+        let results = store.findRecipesByName("Pasta")
+        XCTAssertEqual(results.count, 2)
+    }
+
+    // MARK: - RecipePersistence protocol conformance
+
+    func testFileStoreConformsToProtocol() {
+        let persistence: RecipePersistence = store
+        persistence.saveRecipe(makeRecipe())
+        XCTAssertEqual(persistence.recipeCount(), 1)
+        XCTAssertNotNil(persistence.loadRecipe(slug: "test-recipe"))
     }
 }

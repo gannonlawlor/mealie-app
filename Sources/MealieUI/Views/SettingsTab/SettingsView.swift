@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State var defaultListId: String = AppSettings.shared.defaultShoppingListId ?? ""
     #if !os(Android)
     @State var iCloudSync: Bool = AppSettings.shared.iCloudSync
+    @State var iCloudSyncInitial: Bool = AppSettings.shared.iCloudSync
     @State var iCloudAvailable: Bool = false
     #endif
 
@@ -120,15 +121,14 @@ struct SettingsView: View {
                         .disabled(!iCloudAvailable)
                         .onChange(of: iCloudSync) { _, newValue in
                             AppSettings.shared.iCloudSync = newValue
-                            if newValue {
-                                ICloudSyncManager.shared.enableICloudSync()
-                            } else {
-                                ICloudSyncManager.shared.disableICloudSync()
-                            }
                         }
                 } footer: {
                     if iCloudAvailable {
-                        Text("Sync your local recipes across all your iOS devices using iCloud.")
+                        if iCloudSync != iCloudSyncInitial {
+                            Text("Restart the app for iCloud sync changes to take effect.")
+                        } else {
+                            Text("Sync your local recipes across all your iOS devices using iCloud.")
+                        }
                     } else {
                         Text("iCloud is not available. Sign in to iCloud in Settings to enable sync.")
                     }
