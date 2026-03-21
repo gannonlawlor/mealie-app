@@ -31,12 +31,14 @@ echo "Version: $CURRENT_VERSION → $NEW_VERSION"
 echo "Build:   $CURRENT_BUILD → $NEW_BUILD"
 echo ""
 
-# Confirm
-read -p "Proceed? (y/n) " -n 1 -r
-echo ""
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Aborted."
-    exit 1
+# Skip confirmation with --yes / -y flag
+if [[ "${2:-}" != "--yes" && "${2:-}" != "-y" ]]; then
+    read -p "Proceed? (y/n) " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
 fi
 
 # 1. Update Skip.env
