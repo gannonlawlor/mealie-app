@@ -78,6 +78,11 @@ struct RecipeListView: View {
         .onSubmit(of: .search) {
             Task { await recipeVM.search() }
         }
+        .onChange(of: recipeVM.searchText) { _, newValue in
+            if newValue.isEmpty {
+                Task { await recipeVM.loadRecipes(reset: true) }
+            }
+        }
         .refreshable {
             await recipeVM.loadRecipes(reset: true)
         }
