@@ -4,7 +4,7 @@ set -euo pipefail
 SKIP_ENV="Skip.env"
 PBXPROJ="Darwin/MealieApp.xcodeproj/project.pbxproj"
 SCHEME="MealieApp App"
-BUMP_TYPE="${1:-minor}"
+BUMP_TYPE="${1:-patch}"
 
 # Read current version from Skip.env
 CURRENT_VERSION=$(grep '^MARKETING_VERSION' "$SKIP_ENV" | sed 's/.*= *//')
