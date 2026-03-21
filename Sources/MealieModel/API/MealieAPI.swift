@@ -83,6 +83,7 @@ public class MealieAPI: @unchecked Sendable {
         isRefreshing = true
         defer { isRefreshing = false }
 
+        // Try the refresh endpoint first
         do {
             let token: AuthToken = try await {
                 let request = try buildRequest(method: "GET", path: "/api/auth/refresh")
@@ -99,6 +100,41 @@ public class MealieAPI: @unchecked Sendable {
             return true
         } catch {
             logInfo("Token refresh failed: \(error)")
+        }
+
+        // Refresh failed — try re-authenticating with saved credentials
+        return await attemptReAuthentication()
+    }
+
+    private func attemptReAuthentication() async -> Bool {
+        guard let email = AuthService.shared.savedEmail,
+              let password = AuthService.shared.savedPassword,
+              let url = buildURL(path: "/api/auth/token") else {
+            logInfo("No saved credentials for re-authentication")
+            return false
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            let body = "username=\(email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email)&password=\(password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? password)"
+            request.httpBody = body.data(using: .utf8)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                logInfo("Re-authentication failed with status code")
+                return false
+            }
+
+            let token = try JSONDecoder().decode(AuthToken.self, from: data)
+            accessToken = token.accessToken
+            AuthService.shared.savedToken = token.accessToken
+            logInfo("Re-authentication successful")
+            return true
+        } catch {
+            logInfo("Re-authentication failed: \(error)")
             return false
         }
     }

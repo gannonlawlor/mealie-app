@@ -13,6 +13,8 @@ public class AuthService: @unchecked Sendable {
     private let tokenKey = "mealie_access_token"
     private let userIdKey = "mealie_user_id"
     private let appModeKey = "mealie_app_mode"
+    private let emailKey = "mealie_email"
+    private let passwordKey = "mealie_password"
 
     private init() {}
 
@@ -49,6 +51,16 @@ public class AuthService: @unchecked Sendable {
         set { UserDefaults.standard.set(newValue, forKey: userIdKey) }
     }
 
+    public var savedEmail: String? {
+        get { UserDefaults.standard.string(forKey: emailKey) }
+        set { UserDefaults.standard.set(newValue, forKey: emailKey) }
+    }
+
+    public var savedPassword: String? {
+        get { UserDefaults.standard.string(forKey: passwordKey) }
+        set { UserDefaults.standard.set(newValue, forKey: passwordKey) }
+    }
+
     // MARK: - Session
 
     public func restoreSession() -> Bool {
@@ -63,11 +75,13 @@ public class AuthService: @unchecked Sendable {
         return true
     }
 
-    public func saveSession(serverURL: String, token: String, userId: String) {
+    public func saveSession(serverURL: String, token: String, userId: String, email: String? = nil, password: String? = nil) {
         savedServerURL = serverURL
         savedToken = token
         savedUserId = userId
         savedAppMode = .server
+        if let email = email { savedEmail = email }
+        if let password = password { savedPassword = password }
         MealieAPI.shared.configure(baseURL: serverURL, token: token)
     }
 
@@ -75,6 +89,8 @@ public class AuthService: @unchecked Sendable {
         savedServerURL = nil
         savedToken = nil
         savedUserId = nil
+        savedEmail = nil
+        savedPassword = nil
         savedAppMode = .server
         MealieAPI.shared.configure(baseURL: "", token: "")
     }

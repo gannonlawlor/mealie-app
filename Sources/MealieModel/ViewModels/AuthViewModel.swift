@@ -71,7 +71,9 @@ private let logger = Log(category: "Auth")
             AuthService.shared.saveSession(
                 serverURL: serverURL,
                 token: token.accessToken,
-                userId: user.id
+                userId: user.id,
+                email: email,
+                password: password
             )
 
             isAuthenticated = true
