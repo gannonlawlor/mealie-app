@@ -16,11 +16,14 @@ private let logger = Log(category: "Auth")
     public var serverInfo: AppInfo? = nil
     public var showServerSetup: Bool = true
 
+    public var savedServers: [SavedServer] = []
+
     public var isLocalMode: Bool {
         AuthService.shared.savedAppMode == .local
     }
 
     public init() {
+        savedServers = AuthService.shared.savedServers
         if AuthService.shared.savedAppMode == .local {
             isAuthenticated = true
             showServerSetup = false
@@ -108,6 +111,27 @@ private let logger = Log(category: "Auth")
         }
     }
 
+    /// Soft logout: clears auth but preserves server URL and email for quick re-login.
+    /// Used when the server returns 401 and token refresh fails.
+    public func softLogout() {
+        AuthService.shared.softClearSession()
+        isAuthenticated = false
+        isServerConnected = false
+        serverURL = AuthService.shared.savedServerURL ?? ""
+        email = AuthService.shared.savedEmail ?? ""
+        password = ""
+        showServerSetup = false // skip straight to login form
+        currentUser = nil
+    }
+
+    public func selectSavedServer(_ server: SavedServer) {
+        serverURL = server.url
+        email = server.email
+        showServerSetup = false
+        errorMessage = ""
+        Task { await validateServer() }
+    }
+
     public func logout() {
         let wasLocal = isLocalMode
         AuthService.shared.clearSession()
@@ -122,5 +146,6 @@ private let logger = Log(category: "Auth")
         email = ""
         password = ""
         serverURL = ""
+        savedServers = AuthService.shared.savedServers
     }
 }

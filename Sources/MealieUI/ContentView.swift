@@ -41,7 +41,7 @@ public struct ContentView: View {
         .task {
             let vm = authVM
             MealieAPI.shared.onUnauthorized = {
-                vm.logout()
+                vm.softLogout()
             }
             recipeVM.isLocalMode = !authVM.isServerConnected
             if authVM.isServerConnected {

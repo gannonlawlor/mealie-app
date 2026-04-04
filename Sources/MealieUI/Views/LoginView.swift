@@ -60,6 +60,48 @@ struct LoginView: View {
             Text("Connect to Server")
                 .font(.headline)
 
+            if !authVM.savedServers.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(Array(authVM.savedServers.enumerated()), id: \.offset) { _, server in
+                        Button(action: {
+                            authVM.selectSavedServer(server)
+                        }) {
+                            HStack {
+                                Image(systemName: "server.rack")
+                                    .foregroundStyle(Color.accentColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(server.url.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: ""))
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    if !server.email.isEmpty {
+                                        Text(server.email)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding()
+                            .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
+                            .cornerRadius(10)
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                }
+
+                HStack {
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                    Text("or enter a new server")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                }
+                .padding(.vertical, 4)
+            }
+
             TextField("Server URL (e.g. mealie.example.com)", text: $authVM.serverURL)
                 .autocorrectionDisabled()
                 .padding()

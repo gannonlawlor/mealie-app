@@ -6,6 +6,16 @@ public enum AppMode: String {
     case server = "server"
 }
 
+public struct SavedServer: Codable, Sendable, Equatable {
+    public var url: String
+    public var email: String
+
+    public init(url: String, email: String) {
+        self.url = url
+        self.email = email
+    }
+}
+
 public class AuthService: @unchecked Sendable {
     public static let shared = AuthService()
 
@@ -15,6 +25,7 @@ public class AuthService: @unchecked Sendable {
     private let appModeKey = "mealie_app_mode"
     private let emailKey = "mealie_email"
     private let passwordKey = "mealie_password"
+    private let savedServersKey = "mealie_saved_servers"
 
     private init() {}
 
@@ -61,6 +72,37 @@ public class AuthService: @unchecked Sendable {
         set { UserDefaults.standard.set(newValue, forKey: passwordKey) }
     }
 
+    // MARK: - Saved Servers
+
+    public var savedServers: [SavedServer] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: savedServersKey),
+                  let servers = try? JSONDecoder().decode([SavedServer].self, from: data) else {
+                return []
+            }
+            return servers
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: savedServersKey)
+            }
+        }
+    }
+
+    public func addSavedServer(url: String, email: String) {
+        var servers = savedServers
+        servers.removeAll { $0.url == url }
+        servers.insert(SavedServer(url: url, email: email), at: 0)
+        if servers.count > 5 { servers = Array(servers.prefix(5)) }
+        savedServers = servers
+    }
+
+    public func removeSavedServer(url: String) {
+        var servers = savedServers
+        servers.removeAll { $0.url == url }
+        savedServers = servers
+    }
+
     // MARK: - Session
 
     public func restoreSession() -> Bool {
@@ -82,7 +124,18 @@ public class AuthService: @unchecked Sendable {
         savedAppMode = .server
         if let email = email { savedEmail = email }
         if let password = password { savedPassword = password }
+        if let email = email {
+            addSavedServer(url: serverURL, email: email)
+        }
         MealieAPI.shared.configure(baseURL: serverURL, token: token)
+    }
+
+    /// Clears auth token but preserves server URL and email for quick re-login.
+    public func softClearSession() {
+        savedToken = nil
+        savedUserId = nil
+        savedPassword = nil
+        MealieAPI.shared.configure(baseURL: savedServerURL ?? "", token: "")
     }
 
     public func clearSession() {
