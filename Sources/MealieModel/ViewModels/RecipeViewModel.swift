@@ -12,6 +12,7 @@ private let logger = Log(category: "Recipes")
     public var isLoading: Bool = false
     public var isLoadingDetail: Bool = false
     public var searchText: String = ""
+    public var matchingTags: [RecipeTag] = []
     public var selectedCategory: RecipeCategory? = nil
     public var selectedTag: RecipeTag? = nil
     public var currentPage: Int = 1
@@ -37,26 +38,49 @@ private let logger = Log(category: "Recipes")
     public var offlineRecipeIds: Set<String> = []
     public var isSavingOffline: Bool = false
 
+    // Search debounce
+    private var searchTask: Task<Void, Never>? = nil
+
     public init() {}
 
     public func loadRecipes(reset: Bool = false) async {
         if isLocalMode {
             isLoading = true
-            var all = LocalRecipeStore.shared.recipeSummaries()
-            // Filter by search
+            let allRecipes = LocalRecipeStore.shared.loadAllRecipes()
+            var filtered = allRecipes
+
+            // Filter by search (name, description, ingredients)
             if !searchText.isEmpty {
                 let query = searchText.lowercased()
-                all = all.filter { ($0.name ?? "").lowercased().contains(query) || ($0.description ?? "").lowercased().contains(query) }
+                filtered = filtered.filter { recipe in
+                    if (recipe.name ?? "").lowercased().contains(query) { return true }
+                    if (recipe.description ?? "").lowercased().contains(query) { return true }
+                    if let ingredients = recipe.recipeIngredient {
+                        for ingredient in ingredients {
+                            if let display = ingredient.display, display.lowercased().contains(query) { return true }
+                            if let food = ingredient.food?.name, food.lowercased().contains(query) { return true }
+                            if let note = ingredient.note, note.lowercased().contains(query) { return true }
+                            if let original = ingredient.originalText, original.lowercased().contains(query) { return true }
+                        }
+                    }
+                    return false
+                }
             }
             // Filter by category
             if let cat = selectedCategory {
-                all = all.filter { ($0.recipeCategory ?? []).contains(where: { $0.slug == cat.slug }) }
+                filtered = filtered.filter { ($0.recipeCategory ?? []).contains(where: { $0.slug == cat.slug }) }
             }
             // Filter by tag
             if let tag = selectedTag {
-                all = all.filter { ($0.tags ?? []).contains(where: { $0.slug == tag.slug }) }
+                filtered = filtered.filter { ($0.tags ?? []).contains(where: { $0.slug == tag.slug }) }
             }
-            recipes = all
+            recipes = filtered.map { recipe in
+                RecipeSummary(id: recipe.id, slug: recipe.slug, name: recipe.name,
+                              description: recipe.description, image: recipe.image,
+                              recipeCategory: recipe.recipeCategory, tags: recipe.tags,
+                              rating: recipe.rating, dateAdded: recipe.dateAdded,
+                              dateUpdated: recipe.dateUpdated)
+            }
             totalPages = 1
             currentPage = 1
             isLoading = false
@@ -340,7 +364,28 @@ private let logger = Log(category: "Recipes")
     }
 
     public func search() async {
+        searchTask?.cancel()
         await loadRecipes(reset: true)
+    }
+
+    public func debouncedSearch() {
+        searchTask?.cancel()
+
+        if searchText.isEmpty {
+            matchingTags = []
+            Task { await loadRecipes(reset: true) }
+            return
+        }
+
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+
+            let query = searchText.lowercased()
+            matchingTags = tags.filter { ($0.name ?? "").lowercased().contains(query) }
+
+            await loadRecipes(reset: true)
+        }
     }
 
     // MARK: - Favorites

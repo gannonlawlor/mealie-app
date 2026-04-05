@@ -43,45 +43,11 @@ struct RecipeListView: View {
             RecipeDetailView(recipeVM: recipeVM, shoppingVM: shoppingVM, slug: recipe.slug ?? "")
         }
         .searchable(text: $recipeVM.searchText, prompt: "Search recipes...")
-        #if !os(Android)
-        .searchSuggestions {
-            if recipeVM.searchText.isEmpty || !filteredCategories.isEmpty || !filteredTags.isEmpty {
-                if !filteredCategories.isEmpty {
-                    Section("Categories") {
-                        ForEach(filteredCategories) { cat in
-                            Button(action: {
-                                recipeVM.selectedCategory = cat
-                                recipeVM.searchText = ""
-                                Task { await recipeVM.loadRecipes(reset: true) }
-                            }) {
-                                Label(cat.name ?? "", systemImage: "folder")
-                            }
-                        }
-                    }
-                }
-                if !filteredTags.isEmpty {
-                    Section("Tags") {
-                        ForEach(filteredTags) { tag in
-                            Button(action: {
-                                recipeVM.selectedTag = tag
-                                recipeVM.searchText = ""
-                                Task { await recipeVM.loadRecipes(reset: true) }
-                            }) {
-                                Label(tag.name ?? "", systemImage: "tag")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        #endif
         .onSubmit(of: .search) {
             Task { await recipeVM.search() }
         }
-        .onChange(of: recipeVM.searchText) { _, newValue in
-            if newValue.isEmpty {
-                Task { await recipeVM.loadRecipes(reset: true) }
-            }
+        .onChange(of: recipeVM.searchText) { _, _ in
+            recipeVM.debouncedSearch()
         }
         .refreshable {
             await recipeVM.loadRecipes(reset: true)
@@ -112,18 +78,6 @@ struct RecipeListView: View {
     }
 
     #if !os(Android)
-    var filteredCategories: [RecipeCategory] {
-        if recipeVM.searchText.isEmpty { return recipeVM.categories }
-        let query = recipeVM.searchText.lowercased()
-        return recipeVM.categories.filter { ($0.name ?? "").lowercased().contains(query) }
-    }
-
-    var filteredTags: [RecipeTag] {
-        if recipeVM.searchText.isEmpty { return recipeVM.tags }
-        let query = recipeVM.searchText.lowercased()
-        return recipeVM.tags.filter { ($0.name ?? "").lowercased().contains(query) }
-    }
-
     var activeFilterChip: some View {
         Group {
             if let cat = recipeVM.selectedCategory {
@@ -218,6 +172,35 @@ struct RecipeListView: View {
 
     var recipeList: some View {
         List {
+            if !recipeVM.matchingTags.isEmpty && !recipeVM.searchText.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(recipeVM.matchingTags) { tag in
+                            Button(action: {
+                                recipeVM.selectedTag = tag
+                                recipeVM.searchText = ""
+                                recipeVM.matchingTags = []
+                                Task { await recipeVM.loadRecipes(reset: true) }
+                            }) {
+                                Label(tag.name ?? "", systemImage: "tag")
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.accentColor.opacity(0.12))
+                                    .foregroundStyle(Color.accentColor)
+                                    .cornerRadius(16)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
+                }
+                .listRowInsets(EdgeInsets())
+                #if !os(Android)
+                .listRowSeparator(.hidden)
+                #endif
+            }
+
             if recipeVM.isLoading && recipeVM.recipes.isEmpty {
                 HStack {
                     Spacer()
