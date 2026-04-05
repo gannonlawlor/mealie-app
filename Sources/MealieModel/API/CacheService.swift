@@ -10,26 +10,6 @@ public class CacheService: @unchecked Sendable {
 
     private init() {}
 
-    // MARK: - Recipe List
-
-    public func saveRecipeList(_ recipes: [RecipeSummary]) {
-        save(recipes, filename: "recipe_list.json")
-    }
-
-    public func loadRecipeList() -> [RecipeSummary]? {
-        load(filename: "recipe_list.json")
-    }
-
-    // MARK: - Recipe Detail
-
-    public func saveRecipeDetail(_ recipe: Recipe, slug: String) {
-        save(recipe, filename: "recipe_detail_\(slug).json")
-    }
-
-    public func loadRecipeDetail(slug: String) -> Recipe? {
-        load(filename: "recipe_detail_\(slug).json")
-    }
-
     // MARK: - Shopping Lists
 
     public func saveShoppingLists(_ lists: [ShoppingList]) {

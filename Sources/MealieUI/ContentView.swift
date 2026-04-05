@@ -48,6 +48,7 @@ public struct ContentView: View {
                 await authVM.loadCurrentUser()
                 recipeVM.loadFavorites(user: authVM.currentUser)
                 recipeVM.loadOfflineIds()
+                Task.detached { await RecipeSyncService.shared.syncAll() }
             } else {
                 recipeVM.loadFavorites(user: nil)
             }
@@ -60,6 +61,7 @@ public struct ContentView: View {
                     recipeVM.loadFavorites(user: authVM.currentUser)
                     recipeVM.loadOfflineIds()
                     await recipeVM.loadRecipes(reset: true)
+                    Task.detached { await RecipeSyncService.shared.syncAll() }
                 }
             } else {
                 if selectedTab == .mealPlan || selectedTab == .shopping {

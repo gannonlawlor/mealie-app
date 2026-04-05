@@ -175,6 +175,21 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+
+                    HStack {
+                        Text("Recipes Synced")
+                        Spacer()
+                        if RecipeSyncService.shared.isSyncing {
+                            HStack(spacing: 6) {
+                                Text("Syncing...")
+                                    .foregroundStyle(.secondary)
+                                ProgressView()
+                            }
+                        } else {
+                            Text("\(RecipeSyncService.shared.syncedRecipeCount)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 

@@ -273,11 +273,17 @@ struct AddMealPlanView: View {
             return
         }
         isSearching = true
-        do {
-            let response = try await MealieAPI.shared.getRecipes(page: 1, perPage: 20, search: searchText)
-            searchResults = response.items
-        } catch {
-            // ignore
+        if RecipeSyncService.shared.isSynced {
+            let query = searchText.lowercased()
+            let all = RecipeSyncService.shared.loadSummaryIndex()
+            searchResults = all.filter { ($0.name ?? "").lowercased().contains(query) }
+        } else {
+            do {
+                let response = try await MealieAPI.shared.getRecipes(page: 1, perPage: 20, search: searchText)
+                searchResults = response.items
+            } catch {
+                // ignore
+            }
         }
         isSearching = false
     }

@@ -87,14 +87,66 @@ private let logger = Log(category: "Recipes")
             return
         }
 
+        // Server mode with sync available — read from sync store
+        if RecipeSyncService.shared.isSynced {
+            isLoading = true
+
+            if !searchText.isEmpty {
+                // Search full recipes locally for ingredient matching
+                let allRecipes = RecipeSyncService.shared.loadAllSyncedRecipes()
+                let query = searchText.lowercased()
+                var filtered = allRecipes.filter { recipe in
+                    if (recipe.name ?? "").lowercased().contains(query) { return true }
+                    if (recipe.description ?? "").lowercased().contains(query) { return true }
+                    if let ingredients = recipe.recipeIngredient {
+                        for ingredient in ingredients {
+                            if let display = ingredient.display, display.lowercased().contains(query) { return true }
+                            if let food = ingredient.food?.name, food.lowercased().contains(query) { return true }
+                            if let note = ingredient.note, note.lowercased().contains(query) { return true }
+                            if let original = ingredient.originalText, original.lowercased().contains(query) { return true }
+                        }
+                    }
+                    return false
+                }
+                if let cat = selectedCategory {
+                    filtered = filtered.filter { ($0.recipeCategory ?? []).contains(where: { $0.slug == cat.slug }) }
+                }
+                if let tag = selectedTag {
+                    filtered = filtered.filter { ($0.tags ?? []).contains(where: { $0.slug == tag.slug }) }
+                }
+                recipes = filtered.map { recipe in
+                    RecipeSummary(id: recipe.id, slug: recipe.slug, name: recipe.name,
+                                  description: recipe.description, image: recipe.image,
+                                  recipeCategory: recipe.recipeCategory, tags: recipe.tags,
+                                  rating: recipe.rating, dateAdded: recipe.dateAdded,
+                                  dateUpdated: recipe.dateUpdated)
+                }
+            } else {
+                // Browse from summary index
+                var all = RecipeSyncService.shared.loadSummaryIndex()
+                if let cat = selectedCategory {
+                    all = all.filter { ($0.recipeCategory ?? []).contains(where: { $0.slug == cat.slug }) }
+                }
+                if let tag = selectedTag {
+                    all = all.filter { ($0.tags ?? []).contains(where: { $0.slug == tag.slug }) }
+                }
+                recipes = all
+            }
+            totalPages = 1
+            currentPage = 1
+            isLoading = false
+
+            // Preload thumbnails in background
+            let recipesToCache = recipes
+            Task.detached {
+                await ImageCacheService.shared.preloadThumbnails(recipes: recipesToCache)
+            }
+            return
+        }
+
+        // Fallback: not yet synced — use API directly
         if reset {
             currentPage = 1
-            // Show cached data immediately on first load
-            if recipes.isEmpty, searchText.isEmpty, selectedCategory == nil, selectedTag == nil {
-                if let cached = CacheService.shared.loadRecipeList() {
-                    recipes = cached
-                }
-            }
         }
 
         isLoading = true
@@ -111,10 +163,6 @@ private let logger = Log(category: "Recipes")
             )
             if reset {
                 recipes = response.items
-                // Cache unfiltered first page
-                if searchText.isEmpty && selectedCategory == nil && selectedTag == nil {
-                    CacheService.shared.saveRecipeList(response.items)
-                }
             } else {
                 recipes.append(contentsOf: response.items)
             }
@@ -147,27 +195,23 @@ private let logger = Log(category: "Recipes")
             return
         }
 
-        // Show cached detail immediately
-        if let cached = CacheService.shared.loadRecipeDetail(slug: slug) {
-            selectedRecipe = cached
+        // Read from sync store if available
+        if let synced = RecipeSyncService.shared.loadRecipeBySlug(slug: slug) {
+            selectedRecipe = synced
+            isLoadingDetail = false
+            return
         }
 
-        isLoadingDetail = selectedRecipe == nil
+        // Fallback: fetch from API (recipe may be brand new or sync incomplete)
+        isLoadingDetail = true
         do {
             let recipe = try await MealieAPI.shared.getRecipe(slug: slug)
             selectedRecipe = recipe
-            CacheService.shared.saveRecipeDetail(recipe, slug: slug)
+            RecipeSyncService.shared.updateRecipe(recipe)
             isLoadingDetail = false
         } catch {
-            if selectedRecipe == nil {
-                // Try offline fallback
-                if let offline = OfflineRecipeStore.shared.loadRecipeBySlug(slug: slug) {
-                    selectedRecipe = offline
-                } else {
-                    errorMessage = "Failed to load recipe."
-                    errorDetail = AppEnvironment.errorDetail(error)
-                }
-            }
+            errorMessage = "Failed to load recipe."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to load recipe detail: \(error)")
             isLoadingDetail = false
         }
@@ -243,6 +287,7 @@ private let logger = Log(category: "Recipes")
             try await MealieAPI.shared.deleteRecipe(slug: slug)
             selectedRecipe = nil
             recipes.removeAll { $0.slug == slug }
+            RecipeSyncService.shared.removeRecipe(slug: slug)
             return true
         } catch {
             errorMessage = "Failed to delete recipe."
@@ -313,8 +358,11 @@ private let logger = Log(category: "Recipes")
             importMessage = "Recipe imported successfully!"
             importURL = ""
             isImporting = false
-            // Brief delay so the server indexes the new recipe before we fetch the list
+            // Fetch the new recipe detail and add to sync store
             try? await Task.sleep(nanoseconds: 500_000_000)
+            if let recipe = try? await MealieAPI.shared.getRecipe(slug: slug) {
+                RecipeSyncService.shared.updateRecipe(recipe)
+            }
             await loadRecipes(reset: true)
             return true
         } catch {
@@ -456,7 +504,9 @@ private let logger = Log(category: "Recipes")
         }
 
         do {
-            selectedRecipe = try await MealieAPI.shared.updateRecipe(slug: slug, data: data)
+            let updated = try await MealieAPI.shared.updateRecipe(slug: slug, data: data)
+            selectedRecipe = updated
+            RecipeSyncService.shared.updateRecipe(updated)
             await loadRecipes(reset: true)
             return true
         } catch {

@@ -138,6 +138,7 @@ private let logger = Log(category: "Auth")
         if !wasLocal {
             CacheService.shared.clearAll()
             OfflineRecipeStore.shared.clearAll()
+            RecipeSyncService.shared.clearAll()
         }
         isAuthenticated = false
         isServerConnected = false
