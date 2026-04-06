@@ -168,6 +168,10 @@ struct RecipeSplitView: View {
                 ForEach(recipeVM.recipes) { recipe in
                     Button(action: {
                         selectedSlug = recipe.slug
+                        if !recipeVM.searchText.isEmpty {
+                            recipeVM.searchText = ""
+                            recipeVM.matchingTags = []
+                        }
                     }) {
                         RecipeRowView(
                             recipe: recipe,

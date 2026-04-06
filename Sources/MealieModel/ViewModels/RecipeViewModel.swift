@@ -74,7 +74,9 @@ private let logger = Log(category: "Recipes")
             if let tag = selectedTag {
                 filtered = filtered.filter { ($0.tags ?? []).contains(where: { $0.slug == tag.slug }) }
             }
-            recipes = filtered.map { recipe in
+            recipes = filtered
+                .sorted { ($0.name ?? "").localizedCaseInsensitiveCompare($1.name ?? "") == .orderedAscending }
+                .map { recipe in
                 RecipeSummary(id: recipe.id, slug: recipe.slug, name: recipe.name,
                               description: recipe.description, image: recipe.image,
                               recipeCategory: recipe.recipeCategory, tags: recipe.tags,
@@ -114,7 +116,9 @@ private let logger = Log(category: "Recipes")
                 if let tag = selectedTag {
                     filtered = filtered.filter { ($0.tags ?? []).contains(where: { $0.slug == tag.slug }) }
                 }
-                recipes = filtered.map { recipe in
+                recipes = filtered
+                    .sorted { ($0.name ?? "").localizedCaseInsensitiveCompare($1.name ?? "") == .orderedAscending }
+                    .map { recipe in
                     RecipeSummary(id: recipe.id, slug: recipe.slug, name: recipe.name,
                                   description: recipe.description, image: recipe.image,
                                   recipeCategory: recipe.recipeCategory, tags: recipe.tags,

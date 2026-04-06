@@ -41,6 +41,12 @@ struct RecipeListView: View {
         .navigationTitle("Recipes")
         .navigationDestination(for: RecipeSummary.self) { recipe in
             RecipeDetailView(recipeVM: recipeVM, shoppingVM: shoppingVM, slug: recipe.slug ?? "")
+                .onAppear {
+                    if !recipeVM.searchText.isEmpty {
+                        recipeVM.searchText = ""
+                        recipeVM.matchingTags = []
+                    }
+                }
         }
         .searchable(text: $recipeVM.searchText, prompt: "Search recipes...")
         .onSubmit(of: .search) {
