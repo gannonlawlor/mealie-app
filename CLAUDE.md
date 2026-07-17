@@ -30,17 +30,17 @@ Skip.env          # Shared config (bundle ID, version, Android package name)
 ```sh
 # iOS only (skip Android Gradle build)
 xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   build SKIP_ACTION=none
 
 # iOS + Android (build only, no launch)
 xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   build SKIP_ACTION=build
 
 # iOS + Android (build and launch on emulator)
 xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   build
 ```
 

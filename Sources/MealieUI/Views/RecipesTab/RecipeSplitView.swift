@@ -10,6 +10,7 @@ import MealieModel
 struct RecipeSplitView: View {
     @Bindable var recipeVM: RecipeViewModel
     @Bindable var shoppingVM: ShoppingViewModel
+    @Bindable var mealPlanVM: MealPlanViewModel
     @State var selectedSlug: String? = nil
     @State var showImportSheet = false
 
@@ -52,6 +53,7 @@ struct RecipeSplitView: View {
                     RecipeDetailView(
                         recipeVM: recipeVM,
                         shoppingVM: shoppingVM,
+                        mealPlanVM: mealPlanVM,
                         slug: slug,
                         onDelete: { selectedSlug = nil }
                     )

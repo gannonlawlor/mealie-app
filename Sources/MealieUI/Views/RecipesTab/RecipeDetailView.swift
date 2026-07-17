@@ -10,10 +10,12 @@ import MealieModel
 struct RecipeDetailView: View {
     @Bindable var recipeVM: RecipeViewModel
     @Bindable var shoppingVM: ShoppingViewModel
+    @Bindable var mealPlanVM: MealPlanViewModel
     let slug: String
     var onDelete: () -> Void = {}
     @State var showDeleteAlert = false
     @State var showEditSheet = false
+    @State var showAddToMealPlan = false
     @State var isDescriptionExpanded = false
     @State var showShoppingListPicker = false
     @State var selectedIngredient: RecipeIngredient? = nil
@@ -61,6 +63,11 @@ struct RecipeDetailView: View {
                     }
 
                     Menu {
+                        if !recipeVM.isLocalMode {
+                            Button(action: { showAddToMealPlan = true }) {
+                                Label("Add to Meal Plan", systemImage: "calendar")
+                            }
+                        }
                         Button(action: { showEditSheet = true }) {
                             Label("Edit Recipe", systemImage: "pencil")
                         }
@@ -108,6 +115,15 @@ struct RecipeDetailView: View {
         }
         .sheet(isPresented: $showShoppingListPicker) {
             shoppingListPickerSheet
+        }
+        .sheet(isPresented: $showAddToMealPlan) {
+            if let recipeId = recipeVM.selectedRecipe?.id {
+                AddToMealPlanSheet(
+                    mealPlanVM: mealPlanVM,
+                    recipeId: recipeId,
+                    isPresented: $showAddToMealPlan
+                )
+            }
         }
         .onChange(of: showShoppingListPicker) { _, showing in
             if showing {
@@ -545,5 +561,87 @@ struct RecipeDetailView: View {
             result = iso // If not ISO format, return as-is
         }
         return result
+    }
+}
+
+struct AddToMealPlanSheet: View {
+    @Bindable var mealPlanVM: MealPlanViewModel
+    let recipeId: String
+    @Binding var isPresented: Bool
+    @State var selectedMealType: MealType = .dinner
+    @State var isAdding = false
+
+    var upcomingDates: [Date] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Picker("Meal Type", selection: $selectedMealType) {
+                    ForEach(MealType.allCases, id: \.self) { type in
+                        Text(type.displayName).tag(type)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 16)
+
+                List {
+                    ForEach(upcomingDates, id: \.self) { date in
+                        Button(action: { add(date: date) }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(dayLabel(date))
+                                        .font(.body)
+                                    Text(dateLabel(date))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "plus.circle")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .disabled(isAdding)
+                    }
+                }
+            }
+            .navigationTitle("Add to Meal Plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isPresented = false }
+                }
+            }
+        }
+    }
+
+    func dayLabel(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) { return "Today" }
+        if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()),
+           MealPlanViewModel.dateString(tomorrow) == MealPlanViewModel.dateString(date) {
+            return "Tomorrow"
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
+    func dateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
+    }
+
+    func add(date: Date) {
+        guard !isAdding else { return }
+        isAdding = true
+        Task {
+            await mealPlanVM.addMealPlan(date: date, type: selectedMealType, recipeId: recipeId)
+            isAdding = false
+            isPresented = false
+        }
     }
 }

@@ -10,6 +10,7 @@ import MealieModel
 struct RecipeListView: View {
     @Bindable var recipeVM: RecipeViewModel
     @Bindable var shoppingVM: ShoppingViewModel
+    @Bindable var mealPlanVM: MealPlanViewModel
     @State var showImportSheet = false
     @State var showFavoritesOnly: Bool = false
 
@@ -40,7 +41,7 @@ struct RecipeListView: View {
         }
         .navigationTitle("Recipes")
         .navigationDestination(for: RecipeSummary.self) { recipe in
-            RecipeDetailView(recipeVM: recipeVM, shoppingVM: shoppingVM, slug: recipe.slug ?? "")
+            RecipeDetailView(recipeVM: recipeVM, shoppingVM: shoppingVM, mealPlanVM: mealPlanVM, slug: recipe.slug ?? "")
                 .onAppear {
                     if !recipeVM.searchText.isEmpty {
                         recipeVM.searchText = ""
