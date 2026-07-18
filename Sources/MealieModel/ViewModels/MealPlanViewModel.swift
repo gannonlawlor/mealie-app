@@ -8,17 +8,11 @@ private let logger = Log(category: "MealPlan")
     public var weekEntries: [String: [MealPlanEntry]] = [:]
     public var todayEntries: [MealPlanEntry] = []
     public var isLoading: Bool = false
-    public var currentWeekStart: Date = MealPlanViewModel.startOfWeek(for: Date())
+    public var currentWeekStart: Date = Calendar.current.startOfDay(for: Date())
     public var errorMessage: String = ""
     public var errorDetail: String = ""
 
     public init() {}
-
-    public static func startOfWeek(for date: Date) -> Date {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        return calendar.date(from: components) ?? date
-    }
 
     public var weekDates: [Date] {
         (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: currentWeekStart) }
@@ -102,7 +96,7 @@ private let logger = Log(category: "MealPlan")
     }
 
     public func goToThisWeek() {
-        currentWeekStart = MealPlanViewModel.startOfWeek(for: Date())
+        currentWeekStart = Calendar.current.startOfDay(for: Date())
     }
 
     public func addMealPlan(date: Date, type: MealType, recipeId: String?) async {

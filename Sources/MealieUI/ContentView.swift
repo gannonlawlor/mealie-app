@@ -153,7 +153,7 @@ public struct ContentView: View {
 
             if authVM.isServerConnected {
                 NavigationStack {
-                    MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)
+                    MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM, shoppingVM: shoppingVM)
                 }
                 .tag(AppTab.mealPlan)
                 .tabItem {
@@ -192,7 +192,7 @@ public struct ContentView: View {
                     RecipeSplitView(recipeVM: recipeVM, shoppingVM: shoppingVM, mealPlanVM: mealPlanVM)
                 case .mealPlan:
                     NavigationStack {
-                        MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM)
+                        MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM, shoppingVM: shoppingVM)
                     }
 
                 case .shopping:

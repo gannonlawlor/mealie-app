@@ -10,6 +10,7 @@ import MealieModel
 struct MealPlanView: View {
     @Bindable var mealPlanVM: MealPlanViewModel
     @Bindable var recipeVM: RecipeViewModel
+    @Bindable var shoppingVM: ShoppingViewModel
     @State var showAddSheet = false
     @State var selectedDate: Date = Date()
     @Environment(\.colorScheme) var colorScheme
@@ -39,6 +40,9 @@ struct MealPlanView: View {
         }
         .navigationTitle("Meal Plan")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: RecipeSummary.self) { recipe in
+            RecipeDetailView(recipeVM: recipeVM, shoppingVM: shoppingVM, mealPlanVM: mealPlanVM, slug: recipe.slug ?? "")
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Today") {
@@ -150,6 +154,33 @@ struct MealPlanView: View {
 
     func mealEntryRow(_ entry: MealPlanEntry) -> some View {
         HStack(spacing: 10) {
+            if let recipe = entry.recipe, recipe.slug != nil {
+                NavigationLink(value: recipe) {
+                    mealEntryContent(entry, isNavigable: true)
+                }
+                .buttonStyle(.plain)
+            } else {
+                mealEntryContent(entry, isNavigable: false)
+            }
+
+            Button(role: .destructive) {
+                if let id = entry.id {
+                    Task { await mealPlanVM.deleteMealPlan(id: String(id)) }
+                }
+            } label: {
+                Image(systemName: "xmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
+        .cornerRadius(8)
+    }
+
+    func mealEntryContent(_ entry: MealPlanEntry, isNavigable: Bool) -> some View {
+        HStack(spacing: 10) {
             Image(systemName: entry.mealType.icon)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -166,20 +197,13 @@ struct MealPlanView: View {
 
             Spacer()
 
-            Button(role: .destructive) {
-                if let id = entry.id {
-                    Task { await mealPlanVM.deleteMealPlan(id: String(id)) }
-                }
-            } label: {
-                Image(systemName: "xmark.circle")
-                    .font(.caption)
+            if isNavigable {
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
-        .cornerRadius(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
