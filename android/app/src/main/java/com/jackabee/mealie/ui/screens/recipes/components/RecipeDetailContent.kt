@@ -349,7 +349,12 @@ fun RecipeDetailContent(
         ShoppingListPickerSheet(
             shoppingLists = shoppingState.shoppingLists,
             pendingItemCounts = shoppingState.pendingItemCounts,
-            onPick = { listId ->
+            onPick = { listId, setAsDefault ->
+                if (setAsDefault) {
+                    container.settings.defaultShoppingListId = listId
+                    container.settings.defaultShoppingListName =
+                        shoppingState.shoppingLists.firstOrNull { it.id == listId }?.name
+                }
                 pendingIngredient?.let { addIngredientToList(listId, it) }
                 pendingIngredient = null
                 showListPicker = false
