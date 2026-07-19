@@ -10,6 +10,9 @@ let package = Package(
         .library(name: "MealieUI", type: .dynamic, targets: ["MealieUI"]),
         .library(name: "MealieModel", type: .dynamic, targets: ["MealieModel"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
+    ],
     targets: [
         .target(name: "MealieApp", dependencies: [
             "MealieUI",
@@ -23,6 +26,12 @@ let package = Package(
 
         .testTarget(name: "MealieModelTests", dependencies: [
             "MealieModel",
+        ]),
+
+        .testTarget(name: "MealieUISnapshotTests", dependencies: [
+            "MealieUI",
+            "MealieModel",
+            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ]),
     ]
 )
