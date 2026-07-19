@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mealie brand orange, matching the iOS accent color -->
+    <color name="mealie_primary">#E58325</color>
+</resources>

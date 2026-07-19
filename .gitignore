@@ -19,3 +19,4 @@ Android/build/
 .DS_Store
 Thumbs.db
 build/
+.claude/worktrees/

@@ -1,0 +1,623 @@
+import Foundation
+import SwiftUI
+import MealieModel
+
+struct RecipeDetailView: View {
+    @Bindable var recipeVM: RecipeViewModel
+    @Bindable var shoppingVM: ShoppingViewModel
+    @Bindable var mealPlanVM: MealPlanViewModel
+    let slug: String
+    var onDelete: () -> Void = {}
+    @State var showDeleteAlert = false
+    @State var showEditSheet = false
+    @State var showAddToMealPlan = false
+    @State var isDescriptionExpanded = false
+    @State var showShoppingListPicker = false
+    @State var selectedIngredient: RecipeIngredient? = nil
+    @State var pressedIngredientIndex: Int = -1
+    @State var longPressProgress: Double = 0
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        Group {
+            if recipeVM.isLoadingDetail {
+                ProgressView("Loading recipe...")
+            } else if let recipe = recipeVM.selectedRecipe {
+                recipeContent(recipe)
+            } else {
+                Text("Recipe not found")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle(recipeVM.selectedRecipe?.name ?? "Recipe")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack(spacing: 12) {
+                    Button(action: {
+                        let userId = AuthService.shared.savedUserId ?? ""
+                        Task { await recipeVM.toggleFavorite(slug: slug, userId: userId) }
+                    }) {
+                        Image(systemName: recipeVM.isFavorite(slug: slug) ? "heart.fill" : "heart")
+                            .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .primary)
+                    }
+
+                    if !recipeVM.isLocalMode, let recipeId = recipeVM.selectedRecipe?.id {
+                        Button(action: {
+                            Task { await recipeVM.toggleOffline(slug: slug, recipeId: recipeId) }
+                        }) {
+                            if recipeVM.isSavingOffline {
+                                ProgressView()
+                            } else {
+                                Image(systemName: recipeVM.isOffline(recipeId: recipeId) ? "arrow.down.circle.fill" : "arrow.down.circle")
+                                    .foregroundStyle(recipeVM.isOffline(recipeId: recipeId) ? .green : .primary)
+                            }
+                        }
+                        .disabled(recipeVM.isSavingOffline)
+                    }
+
+                    Menu {
+                        if !recipeVM.isLocalMode {
+                            Button(action: { showAddToMealPlan = true }) {
+                                Label("Add to Meal Plan", systemImage: "calendar")
+                            }
+                        }
+                        Button(action: { showEditSheet = true }) {
+                            Label("Edit Recipe", systemImage: "pencil")
+                        }
+                        Button(role: .destructive, action: { showDeleteAlert = true }) {
+                            Label("Delete Recipe", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            if let recipe = recipeVM.selectedRecipe {
+                EditRecipeView(recipeVM: recipeVM, recipe: recipe, isPresented: $showEditSheet)
+            }
+        }
+        .alert("Delete Recipe", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task {
+                    let success = await recipeVM.deleteRecipe(slug: slug)
+                    if success {
+                        onDelete()
+                        dismiss()
+                    }
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this recipe? This cannot be undone.")
+        }
+        .task {
+            await recipeVM.loadRecipeDetail(slug: slug)
+            // Cache detail image in background for future cold starts
+            if !recipeVM.isLocalMode, let recipeId = recipeVM.selectedRecipe?.id {
+                Task.detached {
+                    await ImageCacheService.shared.cacheDetailImage(recipeId: recipeId)
+                }
+            }
+        }
+        .task {
+            if !recipeVM.isLocalMode && shoppingVM.shoppingLists.isEmpty {
+                await shoppingVM.loadShoppingLists()
+            }
+        }
+        .sheet(isPresented: $showShoppingListPicker) {
+            shoppingListPickerSheet
+        }
+        .sheet(isPresented: $showAddToMealPlan) {
+            if let recipeId = recipeVM.selectedRecipe?.id {
+                AddToMealPlanSheet(
+                    mealPlanVM: mealPlanVM,
+                    recipeId: recipeId,
+                    isPresented: $showAddToMealPlan
+                )
+            }
+        }
+        .onChange(of: showShoppingListPicker) { _, showing in
+            if showing {
+                shoppingVM.refreshPendingCounts()
+            }
+        }
+        .sensoryFeedback(.success, trigger: shoppingVM.addedItemCount)
+        .onAppear {
+            if AppSettings.shared.keepScreenAwake {
+                UIApplication.shared.isIdleTimerDisabled = true
+            }
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
+    }
+
+    var shoppingListPickerSheet: some View {
+        NavigationStack {
+            List {
+                if shoppingVM.shoppingLists.isEmpty {
+                    Text("No shopping lists found")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(shoppingVM.shoppingLists) { list in
+                        Button(action: {
+                            guard let listId = list.id, let ingredient = selectedIngredient else { return }
+                            if AppSettings.shared.localGroceryList {
+                                shoppingVM.addIngredientLocally(listId: listId, ingredient: ingredient)
+                                #if canImport(EventKit)
+                                if AppSettings.shared.addToReminders {
+                                    Task {
+                                        let _ = await RemindersService.shared.addToGroceryList(text: ingredient.displayText)
+                                    }
+                                }
+                                #endif
+                                showShoppingListPicker = false
+                                selectedIngredient = nil
+                            } else {
+                                Task {
+                                    let success = await shoppingVM.addIngredientToList(listId: listId, ingredient: ingredient)
+                                    if success {
+                                        #if canImport(EventKit)
+                                        if AppSettings.shared.addToReminders {
+                                            let _ = await RemindersService.shared.addToGroceryList(text: ingredient.displayText)
+                                        }
+                                        #endif
+                                    }
+                                    showShoppingListPicker = false
+                                    selectedIngredient = nil
+                                }
+                            }
+                        }) {
+                            HStack {
+                                Text(list.name ?? "Untitled")
+                                if shoppingVM.pendingCount(forListId: list.id ?? "") > 0 {
+                                    Spacer()
+                                    Text("\(shoppingVM.pendingCount(forListId: list.id ?? "")) pending")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add to Shopping List")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showShoppingListPicker = false
+                        selectedIngredient = nil
+                    }
+                }
+            }
+        }
+    }
+
+    func recipeContent(_ recipe: Recipe) -> some View {
+        GeometryReader { geo in
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Hero Image
+                if let recipeId = recipe.id {
+                    heroImage(recipeId: recipeId)
+                        .padding(.bottom, 16)
+                }
+
+                // Padded content below the image
+                VStack(alignment: .leading, spacing: 16) {
+                    // Recipe Title
+                    Text(recipe.name ?? "")
+                        .font(.title)
+                        .bold()
+
+                    // Description
+                    if let description = recipe.description, !description.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(description)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(isDescriptionExpanded ? nil : 3)
+
+                            Button(action: {
+                                withAnimation { isDescriptionExpanded.toggle() }
+                            }) {
+                                Text(isDescriptionExpanded ? "Show less" : "Show more")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
+
+                    // Original Recipe Link
+                    if let orgURL = recipe.orgURL, !orgURL.isEmpty, let url = URL(string: orgURL) {
+                        Link("View Original Recipe \u{2197}", destination: url)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentColor)
+                    }
+
+                    // Time & Yield Info
+                    timeInfoSection(recipe)
+
+                    // Categories & Tags
+                    tagsSection(recipe)
+
+                    // Ingredients
+                    if let ingredients = recipe.recipeIngredient, !ingredients.isEmpty {
+                        ingredientsSection(ingredients)
+                    }
+
+                    // Instructions
+                    if let instructions = recipe.recipeInstructions, !instructions.isEmpty {
+                        instructionsSection(instructions)
+                    }
+
+                    // Nutrition
+                    if let nutrition = recipe.nutrition {
+                        nutritionSection(nutrition)
+                    }
+
+                    Spacer().frame(height: 32)
+                }
+                .padding(.horizontal, 16)
+            }
+            .frame(width: geo.size.width)
+        }
+        }
+    }
+
+    func heroImageURL(recipeId: String) -> URL? {
+        if recipeVM.isLocalMode {
+            if let path = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+                return URL(fileURLWithPath: path)
+            }
+            return nil
+        }
+        if let offlinePath = OfflineRecipeStore.shared.imageFilePath(recipeId: recipeId) {
+            return URL(fileURLWithPath: offlinePath)
+        }
+        if let cachedPath = ImageCacheService.shared.cachedImagePath(recipeId: recipeId, imageType: "min-original.webp") {
+            return URL(fileURLWithPath: cachedPath)
+        }
+        return URL(string: MealieAPI.shared.recipeImageURL(recipeId: recipeId))
+    }
+
+    func heroImage(recipeId: String) -> some View {
+        Group {
+            if let url = heroImageURL(recipeId: recipeId) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: { imagePlaceholder }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 250)
+        .clipped()
+    }
+
+    var imagePlaceholder: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .background(AdaptiveColors.color(.placeholder, isDark: colorScheme == .dark))
+            .overlay {
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
+            }
+    }
+
+    func timeInfoSection(_ recipe: Recipe) -> some View {
+        let items: [(String, String)] = [
+            ("Prep", recipe.prepTime ?? ""),
+            ("Cook", recipe.performTime ?? ""),
+            ("Total", recipe.totalTime ?? ""),
+            ("Yield", recipe.recipeYield ?? ""),
+        ].filter { !$0.1.isEmpty }
+
+        return Group {
+            if !items.isEmpty {
+                HStack(spacing: 12) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        VStack(spacing: 4) {
+                            Text(item.0)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(formatDuration(item.1))
+                                .font(.subheadline)
+                                .bold()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
+                        .cornerRadius(8)
+                    }
+                }
+            }
+        }
+    }
+
+    func tagsSection(_ recipe: Recipe) -> some View {
+        let allTags: [(String, String)] =
+            (recipe.recipeCategory ?? []).map { ("folder", $0.name ?? "") } +
+            (recipe.tags ?? []).map { ("tag", $0.name ?? "") }
+
+        return Group {
+            if !allTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(allTags.enumerated()), id: \.offset) { _, tag in
+                            Label(tag.1, systemImage: tag.0)
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.accentColor.opacity(0.12))
+                                .cornerRadius(16)
+                        }
+                    }
+                    .padding(.horizontal, 1)
+                }
+            }
+        }
+    }
+
+    func ingredientsSection(_ ingredients: [RecipeIngredient]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Ingredients")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                if !recipeVM.isLocalMode {
+                    Text("Long press to add")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(ingredients.enumerated()), id: \.offset) { index, ingredient in
+                    if let title = ingredient.title, !title.isEmpty {
+                        Text(title)
+                            .font(.subheadline)
+                            .bold()
+                            .padding(.top, 4)
+                    }
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "circle")
+                            .font(.system(size: 6))
+                            .padding(.top, 6)
+                            .foregroundStyle(.secondary)
+                        Text(ingredient.displayText)
+                            .font(.body)
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        GeometryReader { geo in
+                            Rectangle()
+                                .fill(Color.accentColor.opacity(0.15))
+                                .frame(width: geo.size.width * (pressedIngredientIndex == index ? longPressProgress : 0))
+                        }
+                    )
+                    .cornerRadius(8)
+                    .onLongPressGesture(minimumDuration: 0.5, pressing: { pressing in
+                        if pressing && !recipeVM.isLocalMode {
+                            pressedIngredientIndex = index
+                            withAnimation(.linear(duration: 0.5)) {
+                                longPressProgress = 1.0
+                            }
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                longPressProgress = 0
+                            }
+                            pressedIngredientIndex = -1
+                        }
+                    }) {
+                        guard !recipeVM.isLocalMode else { return }
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            longPressProgress = 0
+                        }
+                        pressedIngredientIndex = -1
+                        if let defaultListId = AppSettings.shared.defaultShoppingListId, !defaultListId.isEmpty {
+                            addIngredientToDefault(ingredient: ingredient, listId: defaultListId)
+                        } else {
+                            selectedIngredient = ingredient
+                            showShoppingListPicker = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func instructionsSection(_ instructions: [RecipeInstruction]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Instructions")
+                .font(.title2)
+                .bold()
+
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let title = instruction.title, !title.isEmpty {
+                            Text(title)
+                                .font(.headline)
+                        }
+
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("\(index + 1)")
+                                .font(.subheadline)
+                                .bold()
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Color.accentColor)
+                                .clipShape(Circle())
+
+                            Text(instruction.text ?? "")
+                                .font(.body)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func nutritionSection(_ nutrition: Nutrition) -> some View {
+        let items: [(String, String)] = [
+            ("Calories", nutrition.calories ?? ""),
+            ("Fat", nutrition.fatContent ?? ""),
+            ("Protein", nutrition.proteinContent ?? ""),
+            ("Carbs", nutrition.carbohydrateContent ?? ""),
+            ("Fiber", nutrition.fiberContent ?? ""),
+            ("Sugar", nutrition.sugarContent ?? ""),
+        ].filter { !$0.1.isEmpty }
+
+        return Group {
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Nutrition")
+                        .font(.title2)
+                        .bold()
+
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                    ], spacing: 12) {
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                            VStack(spacing: 4) {
+                                Text(item.1)
+                                    .font(.subheadline)
+                                    .bold()
+                                Text(item.0)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(8)
+                            .frame(maxWidth: .infinity)
+                            .background(AdaptiveColors.color(.surface, isDark: colorScheme == .dark))
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func addIngredientToDefault(ingredient: RecipeIngredient, listId: String) {
+        if AppSettings.shared.localGroceryList {
+            shoppingVM.addIngredientLocally(listId: listId, ingredient: ingredient)
+        } else {
+            Task {
+                let _ = await shoppingVM.addIngredientToList(listId: listId, ingredient: ingredient)
+            }
+        }
+        #if canImport(EventKit)
+        if AppSettings.shared.addToReminders {
+            Task {
+                let _ = await RemindersService.shared.addToGroceryList(text: ingredient.displayText)
+            }
+        }
+        #endif
+    }
+
+    func formatDuration(_ iso: String) -> String {
+        // Simple ISO 8601 duration parser (PT1H30M -> 1h 30m)
+        var result = iso
+            .replacingOccurrences(of: "PT", with: "")
+            .replacingOccurrences(of: "H", with: "h ")
+            .replacingOccurrences(of: "M", with: "m ")
+            .replacingOccurrences(of: "S", with: "s")
+            .trimmingCharacters(in: .whitespaces)
+        if !result.contains("h") && !result.contains("m") && !result.contains("s") {
+            result = iso // If not ISO format, return as-is
+        }
+        return result
+    }
+}
+
+struct AddToMealPlanSheet: View {
+    @Bindable var mealPlanVM: MealPlanViewModel
+    let recipeId: String
+    @Binding var isPresented: Bool
+    @State var selectedMealType: MealType = .dinner
+    @State var isAdding = false
+
+    var upcomingDates: [Date] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Picker("Meal Type", selection: $selectedMealType) {
+                    ForEach(MealType.allCases, id: \.self) { type in
+                        Text(type.displayName).tag(type)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 16)
+
+                List {
+                    ForEach(upcomingDates, id: \.self) { date in
+                        Button(action: { add(date: date) }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(dayLabel(date))
+                                        .font(.body)
+                                    Text(dateLabel(date))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "plus.circle")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .disabled(isAdding)
+                    }
+                }
+            }
+            .navigationTitle("Add to Meal Plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isPresented = false }
+                }
+            }
+        }
+    }
+
+    func dayLabel(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) { return "Today" }
+        if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()),
+           MealPlanViewModel.dateString(tomorrow) == MealPlanViewModel.dateString(date) {
+            return "Tomorrow"
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
+    func dateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
+    }
+
+    func add(date: Date) {
+        guard !isAdding else { return }
+        isAdding = true
+        Task {
+            await mealPlanVM.addMealPlan(date: date, type: selectedMealType, recipeId: recipeId)
+            isAdding = false
+            isPresented = false
+        }
+    }
+}

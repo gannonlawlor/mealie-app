@@ -1,97 +1,91 @@
 # Mealie App
 
-Mobile app for [Mealie.io](https://mealie.io) (self-hosted recipe manager) built with [Skip Fuse](https://skip.tools/docs/modules/skip-fuse/) — a single Swift/SwiftUI codebase that compiles to native iOS and native Android.
+Mobile clients for [Mealie.io](https://mealie.io) (self-hosted recipe manager): a **native iOS
+app** (Swift/SwiftUI) and a **native Android app** (Kotlin, Jetpack Compose, MVVM) in one repo.
+(Formerly a single Skip Fuse codebase — see `docs/ANALYSIS.md` for the rewrite rationale and
+the feature parity checklist. `main` prior to the `native-rewrite` merge holds the Skip version.)
 
 ## Project Structure
 
 ```
-Sources/
-  MealieApp/      # App entry point, RootView, platform delegate protocol
-  MealieModel/    # API client, Codable models, @Observable ViewModels
-    API/          # MealieAPI (URLSession), AuthService (Keychain)
-    Models/       # Auth, Recipe, MealPlan, ShoppingList, User, PaginatedResponse
-    ViewModels/   # AuthViewModel, RecipeViewModel, MealPlanViewModel, ShoppingViewModel
-  MealieUI/       # All SwiftUI views (SkipFuseUI on Android)
-    Views/
-      RecipesTab/   # RecipeListView, RecipeDetailView, RecipeSplitView (iPad)
-      MealPlanTab/  # MealPlanView, AddMealPlanView
-      ShoppingTab/  # ShoppingListsView, ShoppingListDetailView, ShoppingSplitView (iPad)
-      SettingsTab/  # SettingsView
-      LoginView.swift
-      SidebarView.swift   # iPad sidebar navigation
-    ContentView.swift     # Adaptive layout: TabView (iPhone) / Sidebar+Split (iPad)
-Darwin/           # Xcode project, xcconfig, assets, Info.plist
-Android/          # Android-specific source (Kotlin entry point)
-Skip.env          # Shared config (bundle ID, version, Android package name)
+ios/
+  Package.swift        # SPM package: MealieApp, MealieUI, MealieModel (+ MealieModelTests)
+  Sources/
+    MealieApp/         # App entry point, RootView
+    MealieModel/       # API client, Codable models, @Observable ViewModels, stores
+      API/             # MealieAPI (URLSession), AuthService, sync/offline/cache stores,
+                       # RecipeURLParser (JSON-LD), SwiftData local store
+      Models/          # Auth, Recipe, MealPlan, ShoppingList, User, paginated responses
+      ViewModels/      # Auth/Recipe/MealPlan/Shopping ViewModels (@MainActor @Observable)
+    MealieUI/          # All SwiftUI views (iPhone tabs + iPad sidebar/split layouts)
+  Tests/MealieModelTests
+  Darwin/              # Xcode project (MealieApp.xcodeproj), assets, Info.plist, ShareExtension
+android/
+  app/src/main/java/com/jackabee/mealie/
+    data/              # model (kotlinx.serialization), api (Retrofit + auth interceptor),
+                       # auth, settings, store (sync/offline/cache/Room local), parser (JSON-LD),
+                       # repository
+    di/                # AppContainer (manual DI), MealieApplication
+    ui/                # theme, navigation, viewmodel (StateFlow UiState), screens/<feature>
+  app/src/test/        # JUnit unit tests (no mocking framework; hand-rolled fakes)
+docs/                  # ANALYSIS.md (feature inventory), UI_SPECS.md (screen behavior specs)
+scripts/               # release.sh (iOS TestFlight)
 ```
 
 ## Build Commands
 
 ```sh
-# iOS only (skip Android Gradle build)
-xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  build SKIP_ACTION=none
+# iOS build
+xcodebuild -project ios/Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 
-# iOS + Android (build only, no launch)
-xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  build SKIP_ACTION=build
+# iOS unit tests (swift test does NOT work — MealieUI needs UIKit)
+cd ios && xcodebuild test -scheme mealie-app-Package \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 
-# iOS + Android (build and launch on emulator)
-xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  build
+# Android build + unit tests
+cd android && ./gradlew assembleDebug test
 ```
 
-First build downloads ~1GB of Gradle dependencies and is slow. Subsequent builds are fast.
+Android needs `android/local.properties` with `sdk.dir=$HOME/Library/Android/sdk`
+(gitignored; SDK platform 35 + build-tools 35.0.0).
 
-## Skip Fuse Constraints
+## Architecture Rules
 
-These SwiftUI APIs are **not available** in SkipFuseUI (Android). Avoid them or use the workarounds noted:
+Both apps implement the same feature set (parity checklist in `docs/ANALYSIS.md`). When adding
+a feature, add it to both, and keep user-facing strings consistent across platforms.
 
-- `NavigationSplitView` — use custom `HStack` layout with `@Environment(\.horizontalSizeClass)`
-- `Color(.systemGray6)` — use `Color(white: 0.9)`
-- `.keyboardType()`, `.textInputAutocapitalization()` — not available, omit
-- `.foregroundStyle(.accent)` — use `Color.accentColor`
-- `.fixedSize(horizontal:vertical:)` — not available, remove
-- `ForEach(0..<count, id: \.self)` — use `ForEach(Array(items.enumerated()), id: \.offset)`
-- `import OSLog` / `Logger` — use `#if canImport(OSLog)` guard or `print()`
-- Generic types can't bridge across Skip Fuse — use concrete types (e.g. `RecipePaginatedResponse` not `PaginatedResponse<T>`)
+- **iOS**: `@MainActor @Observable` ViewModels in MealieModel; views in MealieUI; singletons
+  (`MealieAPI.shared`, `AuthService.shared`, …). iPad uses a custom sidebar + two-pane split
+  layouts keyed off `horizontalSizeClass`.
+- **Android**: MVVM — `ViewModel` + `StateFlow<UiState>` (one UiState data class per VM),
+  constructor-injected deps from `AppContainer`, screens read state via
+  `collectAsStateWithLifecycle`. Adaptive layout: `NavigationSuiteScaffold` (bottom bar ↔ rail)
+  and `isWideLayout` two-pane modes in Recipes/Shopping for foldables/tablets.
+- Unit tests accompany logic changes on both platforms: XCTest (iOS, run on simulator),
+  JUnit + kotlinx-coroutines-test with hand-rolled fakes (Android, plain JVM — no Robolectric).
 
-## Skip Module Configuration
+## Mealie API (v2) — casing quirks matter
 
-- `MealieModel` and `MealieUI` use `skip: mode: native, bridging: true` in their `skip.yml`
-- `MealieApp` uses `build: contents:` (transpiled wrapper)
-- All Views and their properties must be `public` or default access (not `private`)
-- Use `@MainActor` on ViewModels to fix Swift 6 concurrency issues with `@Bindable`
+- **Auth**: `POST /api/auth/token` (form-encoded) → snake_case (`access_token`, `token_type`)
+- **Everything else** uses **camelCase** JSON keys — do NOT add snake_case mappings
+- **Exceptions**: pagination `per_page`/`total_pages`, meal-plan query params
+  `start_date`/`end_date` are snake_case; `MealPlanEntry.id` is **Int**;
+  `RecipeSettings.public` → `isPublic`
+- Shopping item update: `PUT /api/households/shopping/items` with a **list** body;
+  delete body is `[{"itemId": id}]`; create-recipe endpoints return a bare JSON string (slug)
+- Images: `GET /api/media/recipes/{id}/images/{tiny-original.webp|min-original.webp}`
+- 401 handling: refresh token → re-login with saved credentials → retry once → soft logout
 
 ## Key Config Values
 
-- **Bundle ID (iOS)**: `com.jackabee.mealie` (in Skip.env as `PRODUCT_BUNDLE_IDENTIFIER`)
-- **Application ID (Android)**: `com.jackabee.mealie` (in Skip.env as `ANDROID_APPLICATION_ID`)
-- **Android package name**: `mealie.app` (in Skip.env as `ANDROID_PACKAGE_NAME`) — must match `rootProject.name` in Gradle (derived from SPM package name) and Kotlin source path. This is NOT the user-facing app ID.
-- **Xcode project**: `Darwin/MealieApp.xcodeproj`, scheme `"MealieApp App"`
-- The pbxproj must have `XCLocalSwiftPackageReference` pointing to `..` (SPM root) or the skipstone build plugin won't run
-
-## Mealie API (v2)
-
-- **Auth**: `POST /api/auth/token` (form-encoded) returns JWT Bearer token — uses snake_case (`access_token`, `token_type`)
-- **All other endpoints** use **camelCase** JSON keys (e.g. `recipeIngredient`, `entryType`, `shoppingListId`) — do NOT use snake_case CodingKeys for these
-- **Pagination** is the exception: uses `per_page` and `total_pages` (snake_case)
-- **Recipes**: `GET /api/recipes` (paginated), `GET /api/recipes/{slug}` (detail)
-- **Meal Plans**: `GET/POST /api/households/mealplans` — entry `id` is `Int`, not `String`
-- **Shopping Lists**: `GET /api/households/shopping/lists`, `/items`
-- **Images**: `GET /api/media/recipes/{id}/images/min-original.webp`
-
-## iPad Layout
-
-The app uses an adaptive layout based on `horizontalSizeClass`:
-- **Compact** (iPhone): Standard `TabView` with four tabs
-- **Regular** (iPad): Custom sidebar (240pt) + content area with two-column split views for Recipes and Shopping tabs
-
-On iPad, recipe and shopping list selection uses `Button` (not `NavigationLink`) to set selection state in the split view. `RecipeDetailView` accepts an optional `onDelete` closure so the split view can clear selection after deletion.
+- Bundle ID (iOS) / Application ID (Android): `com.jackabee.mealie`
+- Version: `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in `ios/Darwin/MealieApp.xcconfig`
+  and `versionName`/`versionCode` in `android/app/build.gradle.kts` — bump BOTH together
+- Xcode scheme: `"MealieApp App"`; Android root project: `mealie-android`, module `:app`
 
 ## Error Handling
 
-All network errors must be logged with details. In `catch` blocks for API calls, always `print()` the underlying error so it appears in the console. Never silently swallow errors — at minimum log them even if the UI shows a generic message.
+All network errors must be logged with details. Never silently swallow errors — at minimum log
+them even if the UI shows a generic message. Both platforms surface a dismissible error banner
+with a debug-only expandable detail line.

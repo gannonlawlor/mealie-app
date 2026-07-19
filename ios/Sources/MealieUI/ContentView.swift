@@ -1,0 +1,201 @@
+import Foundation
+import SwiftUI
+import MealieModel
+
+public struct ContentView: View {
+    @State var authVM = AuthViewModel()
+    @State var recipeVM = RecipeViewModel()
+    @State var mealPlanVM = MealPlanViewModel()
+    @State var shoppingVM = ShoppingViewModel()
+    @State var selectedTab: AppTab = .recipes
+    @State var appTheme: AppTheme = AppSettings.shared.theme
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.scenePhase) var scenePhase
+
+    public init() {
+    }
+
+    var resolvedColorScheme: ColorScheme? {
+        switch appTheme {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    public var body: some View {
+        Group {
+            if horizontalSizeClass == .regular {
+                iPadLayout
+            } else {
+                mainTabView
+            }
+        }
+        .task {
+            let vm = authVM
+            MealieAPI.shared.onUnauthorized = {
+                vm.softLogout()
+            }
+            recipeVM.isLocalMode = !authVM.isServerConnected
+            if authVM.isServerConnected {
+                await authVM.loadCurrentUser()
+                recipeVM.loadFavorites(user: authVM.currentUser)
+                recipeVM.loadOfflineIds()
+                Task.detached { await RecipeSyncService.shared.syncAll() }
+            } else {
+                recipeVM.loadFavorites(user: nil)
+            }
+        }
+        .onChange(of: authVM.isServerConnected) { _, connected in
+            recipeVM.isLocalMode = !connected
+            if connected {
+                Task {
+                    await authVM.loadCurrentUser()
+                    recipeVM.loadFavorites(user: authVM.currentUser)
+                    recipeVM.loadOfflineIds()
+                    await recipeVM.loadRecipes(reset: true)
+                    Task.detached { await RecipeSyncService.shared.syncAll() }
+                }
+            } else {
+                if selectedTab == .mealPlan || selectedTab == .shopping {
+                    selectedTab = .recipes
+                }
+                recipeVM.loadFavorites(user: nil)
+                Task { await recipeVM.loadRecipes(reset: true) }
+            }
+        }
+        .preferredColorScheme(resolvedColorScheme)
+        .onOpenURL { url in
+            let recipeURL: String
+            if url.scheme == "mealie" {
+                // iOS: mealie://import?url=<encoded_url>
+                guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                      let queryURL = components.queryItems?.first(where: { $0.name == "url" })?.value else {
+                    return
+                }
+                recipeURL = queryURL
+            } else {
+                recipeURL = url.absoluteString
+            }
+            guard !recipeURL.isEmpty else { return }
+            recipeVM.importURL = recipeURL
+            Task {
+                await recipeVM.importFromURL()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                let hadPending = checkPendingShareImport()
+                if !hadPending && authVM.isServerConnected {
+                    // Refresh recipe list when returning to foreground
+                    Task { await recipeVM.loadRecipes(reset: true) }
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func checkPendingShareImport() -> Bool {
+        print("[ShareImport] checkPendingShareImport called, isServerConnected: \(authVM.isServerConnected)")
+        guard authVM.isServerConnected else { return false }
+        let appGroupID = "group.com.jackabee.mealie"
+        let pendingURLKey = "pendingImportURL"
+        guard let defaults = UserDefaults(suiteName: appGroupID) else {
+            print("[ShareImport] FAILED to open App Group UserDefaults with suite: \(appGroupID)")
+            return false
+        }
+        let urlString = defaults.string(forKey: pendingURLKey)
+        print("[ShareImport] pendingImportURL value: \(urlString ?? "nil")")
+        guard let urlString = urlString, !urlString.isEmpty else {
+            return false
+        }
+        print("[ShareImport] importing URL: \(urlString)")
+        recipeVM.importURL = urlString
+        selectedTab = .recipes
+        Task {
+            let success = await recipeVM.importFromURL()
+            if success {
+                defaults.removeObject(forKey: pendingURLKey)
+                defaults.synchronize()
+                print("[ShareImport] cleared pending URL after successful import")
+            } else {
+                print("[ShareImport] import failed, keeping URL for retry")
+            }
+        }
+        return true
+    }
+
+    var mainTabView: some View {
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                RecipeListView(recipeVM: recipeVM, shoppingVM: shoppingVM, mealPlanVM: mealPlanVM)
+            }
+            .tag(AppTab.recipes)
+            .tabItem {
+                Label("Recipes", systemImage: "book")
+            }
+
+            if authVM.isServerConnected {
+                NavigationStack {
+                    MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM, shoppingVM: shoppingVM)
+                }
+                .tag(AppTab.mealPlan)
+                .tabItem {
+                    Label("Meal Plan", systemImage: "calendar")
+                }
+
+                NavigationStack {
+                    ShoppingListsView(shoppingVM: shoppingVM)
+                }
+                .tag(AppTab.shopping)
+                .tabItem {
+                    Label("Shopping", systemImage: "cart")
+                }
+            }
+
+            NavigationStack {
+                SettingsView(authVM: authVM, shoppingVM: shoppingVM, onThemeChange: { appTheme = $0 })
+            }
+            .tag(AppTab.settings)
+            .tabItem {
+                Label("Settings", systemImage: "gear")
+            }
+        }
+    }
+
+    var iPadLayout: some View {
+        HStack(spacing: 0) {
+            SidebarView(selectedTab: $selectedTab, authVM: authVM)
+
+            Divider()
+
+            // Content area
+            Group {
+                switch selectedTab {
+                case .recipes:
+                    RecipeSplitView(recipeVM: recipeVM, shoppingVM: shoppingVM, mealPlanVM: mealPlanVM)
+                case .mealPlan:
+                    NavigationStack {
+                        MealPlanView(mealPlanVM: mealPlanVM, recipeVM: recipeVM, shoppingVM: shoppingVM)
+                    }
+
+                case .shopping:
+                    ShoppingSplitView(shoppingVM: shoppingVM)
+                case .settings:
+                    NavigationStack {
+                        SettingsView(authVM: authVM, shoppingVM: shoppingVM, onThemeChange: { appTheme = $0 })
+                    }
+
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+enum AppTab: Hashable {
+    case recipes
+    case mealPlan
+    case shopping
+    case settings
+}

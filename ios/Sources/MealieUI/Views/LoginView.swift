@@ -1,0 +1,210 @@
+import Foundation
+import SwiftUI
+import MealieModel
+
+struct LoginView: View {
+    @Bindable var authVM: AuthViewModel
+    var hideLocalMode: Bool = false
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    Spacer().frame(height: 40)
+
+                    // App Logo Area
+                    VStack(spacing: 8) {
+                        Image(systemName: "fork.knife.circle.fill")
+                            .font(.system(size: 72))
+                            .foregroundStyle(Color.accentColor)
+                        Text("Mealie")
+                            .font(.largeTitle)
+                            .bold()
+                        Text("Your Recipe Manager")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer().frame(height: 20)
+
+                    if authVM.showServerSetup {
+                        serverSetupForm
+                    } else {
+                        loginForm
+                    }
+
+                    if !authVM.errorMessage.isEmpty {
+                        Text(authVM.errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 32)
+            }
+            .navigationTitle("")
+        }
+    }
+
+    var serverSetupForm: some View {
+        VStack(spacing: 16) {
+            Text("Connect to Server")
+                .font(.headline)
+
+            if !authVM.savedServers.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(Array(authVM.savedServers.enumerated()), id: \.offset) { _, server in
+                        Button(action: {
+                            authVM.selectSavedServer(server)
+                        }) {
+                            HStack {
+                                Image(systemName: "server.rack")
+                                    .foregroundStyle(Color.accentColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(server.url.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: ""))
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    if !server.email.isEmpty {
+                                        Text(server.email)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding()
+                            .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
+                            .cornerRadius(10)
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                }
+
+                HStack {
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                    Text("or enter a new server")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                }
+                .padding(.vertical, 4)
+            }
+
+            TextField("Server URL (e.g. mealie.example.com)", text: $authVM.serverURL)
+                .autocorrectionDisabled()
+                .padding()
+                .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
+                .cornerRadius(10)
+
+            Button(action: {
+                Task { await authVM.validateServer() }
+            }) {
+                if authVM.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                } else {
+                    Text("Connect")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
+            }
+            .foregroundStyle(.white)
+            .background(authVM.serverURL.isEmpty ? Color.gray : Color.accentColor)
+            .cornerRadius(10)
+            .disabled(authVM.serverURL.isEmpty || authVM.isLoading)
+
+            if let info = authVM.serverInfo {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Connected - v\(info.version)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if !hideLocalMode {
+                // Divider with "or"
+                HStack {
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                    Text("or")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+                }
+                .padding(.vertical, 8)
+
+                Button(action: {
+                    authVM.enterLocalMode()
+                }) {
+                    Text("Use Without Server")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
+                .foregroundStyle(Color.accentColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.accentColor, lineWidth: 1.5)
+                )
+                .cornerRadius(10)
+
+                Text("Save recipes locally on your device. You can connect to a server later.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    var loginForm: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Sign In")
+                    .font(.headline)
+                Spacer()
+                Button("Change Server") {
+                    authVM.showServerSetup = true
+                    authVM.errorMessage = ""
+                }
+                .font(.caption)
+            }
+
+            TextField("Email", text: $authVM.email)
+                .autocorrectionDisabled()
+                .padding()
+                .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
+                .cornerRadius(10)
+
+            SecureField("Password", text: $authVM.password)
+                .padding()
+                .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
+                .cornerRadius(10)
+
+            Button(action: {
+                Task { await authVM.login() }
+            }) {
+                if authVM.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                } else {
+                    Text("Sign In")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
+            }
+            .foregroundStyle(.white)
+            .background((authVM.email.isEmpty || authVM.password.isEmpty) ? Color.gray : Color.accentColor)
+            .cornerRadius(10)
+            .disabled(authVM.email.isEmpty || authVM.password.isEmpty || authVM.isLoading)
+        }
+    }
+}
