@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mealie Recipe Saver — Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="header">
+      <img src="icons/icon-32.png" alt="" width="24" height="24">
+      <h1>Mealie Recipe Saver</h1>
+    </header>
+
+    <section class="card">
+      <label for="server-url">Server URL</label>
+      <input id="server-url" type="url" placeholder="https://mealie.example.com" autocomplete="off" spellcheck="false">
+      <p class="hint">The address of your Mealie server, e.g. <code>https://mealie.example.com</code>.</p>
+    </section>
+
+    <section id="section-auth" class="card">
+      <h2>Sign in</h2>
+
+      <div class="auth-block">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="username" spellcheck="false">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password">
+        <button id="btn-signin" class="btn btn-primary" type="button">Sign In</button>
+        <p class="hint">Your password is sent only to your server to obtain a token and is never stored.
+          Note that login tokens expire after a while; for a set-and-forget setup use an API token below.</p>
+      </div>
+
+      <div class="divider"><span>or</span></div>
+
+      <div class="auth-block">
+        <label for="api-token">API token</label>
+        <input id="api-token" type="password" autocomplete="off" spellcheck="false" placeholder="Long-lived token from Mealie">
+        <button id="btn-use-token" class="btn btn-primary" type="button">Use token</button>
+        <p class="hint">Create one in Mealie under <em>User Profile → Manage Your API Tokens</em>. Recommended — it does not expire.</p>
+      </div>
+    </section>
+
+    <section id="section-connected" class="card" hidden>
+      <h2>Connection</h2>
+      <p id="connected-as"></p>
+      <div class="row">
+        <button id="btn-test" class="btn" type="button">Test connection</button>
+        <button id="btn-signout" class="btn btn-danger" type="button">Sign out</button>
+      </div>
+    </section>
+
+    <p id="status" class="status" hidden></p>
+  </main>
+
+  <script src="src/common.js"></script>
+  <script src="src/options.js"></script>
+</body>
+</html>

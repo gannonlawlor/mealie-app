@@ -1,0 +1,4 @@
+# Safari wrapper build artifacts
+safari/build/
+safari/DerivedData/
+safari/**/xcuserdata/

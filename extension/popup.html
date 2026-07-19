@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mealie Recipe Saver</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="header">
+    <img src="icons/icon-32.png" alt="" width="20" height="20">
+    <span>Mealie Recipe Saver</span>
+  </header>
+
+  <!-- Not configured yet -->
+  <section id="view-setup" class="view" hidden>
+    <p class="muted">Connect the extension to your Mealie server to start saving recipes.</p>
+    <button id="btn-open-options" class="btn btn-primary" type="button">Set up your Mealie server</button>
+  </section>
+
+  <!-- Configured: main save view -->
+  <section id="view-main" class="view" hidden>
+    <div class="page-info">
+      <div id="page-title" class="page-title"></div>
+      <div id="page-url" class="page-url"></div>
+    </div>
+    <div id="detect-status" class="detect-status"></div>
+    <button id="btn-save" class="btn btn-primary" type="button">Save to Mealie</button>
+    <div id="save-status" class="save-status" hidden></div>
+  </section>
+
+  <footer class="footer">
+    <a href="#" id="link-options">Options</a>
+  </footer>
+
+  <script src="src/common.js"></script>
+  <script src="src/popup.js"></script>
+</body>
+</html>

@@ -42,6 +42,10 @@ Native mobile clients for [Mealie](https://mealie.io) — the self-hosted recipe
 
 *Screenshots are the committed golden images from the snapshot test suites (fixture data).*
 
+## Browser Extension
+
+The repo also ships a cross-browser extension (`extension/`) that saves recipes straight from the browser to your Mealie server: it detects schema.org Recipe JSON-LD on the page you are viewing, lights a badge on the toolbar icon, and sends the URL to Mealie's `create/url` scraper via the popup or a right-click context menu. It is a single vanilla-JS Manifest V3 codebase that loads unpacked in Chrome and Firefox, with a generated Safari wrapper app included. See [extension/README.md](extension/README.md) for installation, authentication, and development details.
+
 ## Requirements
 
 - A running [Mealie](https://mealie.io) server (v2) — or use local mode without one
