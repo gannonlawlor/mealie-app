@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -49,6 +50,31 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests {
+            // Needed by Robolectric so screenshot tests can inflate real
+            // resources/themes. The existing plain-JUnit tests are unaffected.
+            isIncludeAndroidResources = true
+        }
+    }
+}
+
+// Screenshot tests are debug-only: they need the ComponentActivity from
+// androidx.compose.ui:ui-test-manifest (a debugImplementation dependency) and
+// are driven by the recordRoborazziDebug / verifyRoborazziDebug tasks. Keep
+// them out of the release unit-test variant so plain `gradlew test` stays green.
+tasks.withType<Test>().configureEach {
+    if (name == "testReleaseUnitTest") {
+        exclude("**/screenshots/**")
+    }
+}
+
+roborazzi {
+    // Golden screenshots live in the source tree so they get committed.
+    // The plugin registers this dir as a test-task input/output, so
+    // changed goldens correctly re-trigger verifyRoborazziDebug.
+    outputDir.set(layout.projectDirectory.dir("src/test/roborazzi"))
 }
 
 dependencies {
@@ -89,4 +115,14 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.arch.core.testing)
+
+    // JVM screenshot tests (Roborazzi + Robolectric, no emulator required)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    // Provides the ComponentActivity used by createComposeRule()
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
