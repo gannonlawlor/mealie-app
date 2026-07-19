@@ -1,14 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-SKIP_ENV="Skip.env"
-PBXPROJ="Darwin/MealieApp.xcodeproj/project.pbxproj"
+XCCONFIG="ios/Darwin/MealieApp.xcconfig"
+PBXPROJ="ios/Darwin/MealieApp.xcodeproj/project.pbxproj"
+GRADLE_APP="android/app/build.gradle.kts"
 SCHEME="MealieApp App"
 BUMP_TYPE="${1:-patch}"
 
-# Read current version from Skip.env
-CURRENT_VERSION=$(grep '^MARKETING_VERSION' "$SKIP_ENV" | sed 's/.*= *//')
-CURRENT_BUILD=$(grep '^CURRENT_PROJECT_VERSION' "$SKIP_ENV" | sed 's/.*= *//')
+# Read current version from the xcconfig
+CURRENT_VERSION=$(grep '^MARKETING_VERSION' "$XCCONFIG" | sed 's/.*= *//')
+CURRENT_BUILD=$(grep '^CURRENT_PROJECT_VERSION' "$XCCONFIG" | sed 's/.*= *//')
 
 # Parse major.minor.patch
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -41,23 +42,25 @@ if [[ "${2:-}" != "--yes" && "${2:-}" != "-y" ]]; then
     fi
 fi
 
-# 1. Update Skip.env
-sed -i '' "s/^MARKETING_VERSION = .*/MARKETING_VERSION = $NEW_VERSION/" "$SKIP_ENV"
-sed -i '' "s/^CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEW_BUILD/" "$SKIP_ENV"
-
-# 2. Update ShareExtension versions in pbxproj
+# 1. Update iOS versions (xcconfig + ShareExtension overrides in pbxproj)
+sed -i '' "s/^MARKETING_VERSION = .*/MARKETING_VERSION = $NEW_VERSION/" "$XCCONFIG"
+sed -i '' "s/^CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEW_BUILD/" "$XCCONFIG"
 sed -i '' "s/MARKETING_VERSION = $CURRENT_VERSION;/MARKETING_VERSION = $NEW_VERSION;/g" "$PBXPROJ"
 sed -i '' "s/CURRENT_PROJECT_VERSION = $CURRENT_BUILD;/CURRENT_PROJECT_VERSION = $NEW_BUILD;/g" "$PBXPROJ"
+
+# 2. Keep Android versions in lockstep
+sed -i '' "s/versionCode = $CURRENT_BUILD/versionCode = $NEW_BUILD/" "$GRADLE_APP"
+sed -i '' "s/versionName = \"$CURRENT_VERSION\"/versionName = \"$NEW_VERSION\"/" "$GRADLE_APP"
 
 echo "Updated version files."
 
 # 3. Build for release (archive)
 echo "Archiving..."
 ARCHIVE_PATH="build/MealieApp.xcarchive"
-xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "$SCHEME" \
+xcodebuild -project ios/Darwin/MealieApp.xcodeproj -scheme "$SCHEME" \
     -destination 'generic/platform=iOS' \
     -archivePath "$ARCHIVE_PATH" \
-    archive SKIP_ACTION=none \
+    archive \
     CODE_SIGN_STYLE=Automatic \
     -allowProvisioningUpdates \
     | tail -5
@@ -71,7 +74,7 @@ xcodebuild -exportArchive \
     | tail -5
 
 # 5. Commit and tag
-git add "$SKIP_ENV" "$PBXPROJ"
+git add "$XCCONFIG" "$PBXPROJ" "$GRADLE_APP"
 git commit -m "Release v$NEW_VERSION (build $NEW_BUILD)"
 git tag "v$NEW_VERSION"
 git push && git push --tags

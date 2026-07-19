@@ -17,10 +17,13 @@ import com.jackabee.mealie.data.model.ShoppingListItem
 import com.jackabee.mealie.data.model.ShoppingListPaginatedResponse
 import com.jackabee.mealie.data.model.TagPaginatedResponse
 import com.jackabee.mealie.data.model.User
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -36,7 +39,7 @@ class MealieApi(
     val client: MealieClient,
     private val json: Json,
     okHttpClient: OkHttpClient? = null,
-) {
+) : MealieApiSource {
 
     private val http: OkHttpClient = okHttpClient ?: OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -52,30 +55,30 @@ class MealieApi(
         .build()
         .create(MealieService::class.java)
 
-    fun configure(baseUrl: String, token: String = "") = client.configure(baseUrl, token)
+    override fun configure(baseUrl: String, token: String) = client.configure(baseUrl, token)
 
     val isConfigured: Boolean get() = client.isConfigured
 
     // MARK: Auth
 
-    suspend fun login(email: String, password: String): AuthToken = service.login(email, password)
+    override suspend fun login(email: String, password: String): AuthToken = service.login(email, password)
 
     suspend fun refreshToken(): AuthToken = service.refreshToken()
 
-    suspend fun getAppInfo(): AppInfo = service.getAppInfo()
+    override suspend fun getAppInfo(): AppInfo = service.getAppInfo()
 
-    suspend fun getCurrentUser(): User = service.getCurrentUser()
+    override suspend fun getCurrentUser(): User = service.getCurrentUser()
 
     // MARK: Recipes
 
-    suspend fun getRecipes(
-        page: Int = 1,
-        perPage: Int = 30,
-        search: String? = null,
-        categories: List<String>? = null,
-        tags: List<String>? = null,
-        orderBy: String = "created_at",
-        orderDirection: String = "desc",
+    override suspend fun getRecipes(
+        page: Int,
+        perPage: Int,
+        search: String?,
+        categories: List<String>?,
+        tags: List<String>?,
+        orderBy: String,
+        orderDirection: String,
     ): RecipePaginatedResponse = service.getRecipes(
         page = page,
         perPage = perPage,
@@ -86,21 +89,21 @@ class MealieApi(
         tags = tags?.takeIf { it.isNotEmpty() }?.joinToString(","),
     )
 
-    suspend fun getRecipe(slug: String): Recipe = service.getRecipe(slug)
+    override suspend fun getRecipe(slug: String): Recipe = service.getRecipe(slug)
 
     suspend fun createRecipe(name: String): String = service.createRecipe(CreateRecipe(name))
 
-    suspend fun createRecipeFromURL(url: String, includeTags: Boolean = true): String =
+    override suspend fun createRecipeFromURL(url: String, includeTags: Boolean): String =
         service.createRecipeFromURL(CreateRecipeFromURL(url, includeTags))
 
-    suspend fun updateRecipe(slug: String, data: Recipe): Recipe = service.updateRecipe(slug, data)
+    override suspend fun updateRecipe(slug: String, data: Recipe): Recipe = service.updateRecipe(slug, data)
 
-    suspend fun deleteRecipe(slug: String) = service.deleteRecipe(slug)
+    override suspend fun deleteRecipe(slug: String) = service.deleteRecipe(slug)
 
-    fun recipeImageURL(recipeId: String, imageType: String = IMAGE_MIN_ORIGINAL): String =
+    override fun recipeImageURL(recipeId: String, imageType: String): String =
         "${client.baseUrl}/api/media/recipes/$recipeId/images/$imageType"
 
-    suspend fun uploadRecipeImage(slug: String, imageData: ByteArray) {
+    override suspend fun uploadRecipeImage(slug: String, imageData: ByteArray) {
         val imagePart = MultipartBody.Part.createFormData(
             name = "image",
             filename = "recipe.jpg",
@@ -110,50 +113,64 @@ class MealieApi(
         service.uploadRecipeImage(slug, imagePart, extensionPart)
     }
 
+    /** Mirrors the Swift `try? await URLSession.shared.data(from:)` image fetch. */
+    override suspend fun downloadRecipeImage(recipeId: String): ByteArray? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder().url(recipeImageURL(recipeId)).build()
+                http.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) response.body?.bytes() else null
+                }
+            } catch (e: Exception) {
+                println("Failed to download recipe image for $recipeId: $e")
+                null
+            }
+        }
+
     // MARK: Favorites
 
-    suspend fun addFavorite(userId: String, slug: String) = service.addFavorite(userId, slug)
+    override suspend fun addFavorite(userId: String, slug: String) = service.addFavorite(userId, slug)
 
-    suspend fun removeFavorite(userId: String, slug: String) = service.removeFavorite(userId, slug)
+    override suspend fun removeFavorite(userId: String, slug: String) = service.removeFavorite(userId, slug)
 
     // MARK: Categories & Tags
 
-    suspend fun getCategories(): CategoryPaginatedResponse = service.getCategories()
+    override suspend fun getCategories(): CategoryPaginatedResponse = service.getCategories()
 
-    suspend fun getTags(): TagPaginatedResponse = service.getTags()
+    override suspend fun getTags(): TagPaginatedResponse = service.getTags()
 
     // MARK: Meal Plans
 
-    suspend fun getMealPlans(startDate: String, endDate: String): MealPlanPaginatedResponse =
+    override suspend fun getMealPlans(startDate: String, endDate: String): MealPlanPaginatedResponse =
         service.getMealPlans(startDate = startDate, endDate = endDate)
 
-    suspend fun getTodayMealPlan(): List<MealPlanEntry> = service.getTodayMealPlan()
+    override suspend fun getTodayMealPlan(): List<MealPlanEntry> = service.getTodayMealPlan()
 
-    suspend fun createMealPlan(plan: CreateMealPlan): MealPlanEntry = service.createMealPlan(plan)
+    override suspend fun createMealPlan(plan: CreateMealPlan): MealPlanEntry = service.createMealPlan(plan)
 
-    suspend fun deleteMealPlan(id: Int) = service.deleteMealPlan(id)
+    override suspend fun deleteMealPlan(id: Int) = service.deleteMealPlan(id)
 
     // MARK: Shopping Lists
 
-    suspend fun getShoppingLists(): ShoppingListPaginatedResponse = service.getShoppingLists()
+    override suspend fun getShoppingLists(): ShoppingListPaginatedResponse = service.getShoppingLists()
 
-    suspend fun getShoppingList(id: String): ShoppingList = service.getShoppingList(id)
+    override suspend fun getShoppingList(id: String): ShoppingList = service.getShoppingList(id)
 
-    suspend fun createShoppingList(name: String): ShoppingList =
+    override suspend fun createShoppingList(name: String): ShoppingList =
         service.createShoppingList(CreateShoppingList(name))
 
-    suspend fun deleteShoppingList(id: String) = service.deleteShoppingList(id)
+    override suspend fun deleteShoppingList(id: String) = service.deleteShoppingList(id)
 
-    suspend fun addRecipeToShoppingList(listId: String, recipeId: String) =
+    override suspend fun addRecipeToShoppingList(listId: String, recipeId: String) =
         service.addRecipeToShoppingList(listId, recipeId)
 
-    suspend fun createShoppingListItem(item: CreateShoppingListItem): ShoppingListItem =
+    override suspend fun createShoppingListItem(item: CreateShoppingListItem): ShoppingListItem =
         service.createShoppingListItem(item)
 
-    suspend fun updateShoppingListItem(item: ShoppingListItem) =
+    override suspend fun updateShoppingListItem(item: ShoppingListItem) =
         service.updateShoppingListItems(listOf(item))
 
-    suspend fun deleteShoppingListItem(id: String) =
+    override suspend fun deleteShoppingListItem(id: String) =
         service.deleteShoppingListItems(listOf(mapOf("itemId" to id)))
 
     companion object {
