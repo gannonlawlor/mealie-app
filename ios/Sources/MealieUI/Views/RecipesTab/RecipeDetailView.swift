@@ -1,10 +1,5 @@
 import Foundation
-import SkipFuse
-#if os(Android)
-import SkipFuseUI
-#else
 import SwiftUI
-#endif
 import MealieModel
 
 struct RecipeDetailView: View {
@@ -130,20 +125,14 @@ struct RecipeDetailView: View {
                 shoppingVM.refreshPendingCounts()
             }
         }
-        #if !os(Android)
         .sensoryFeedback(.success, trigger: shoppingVM.addedItemCount)
-        #endif
         .onAppear {
             if AppSettings.shared.keepScreenAwake {
-                #if !os(Android)
                 UIApplication.shared.isIdleTimerDisabled = true
-                #endif
             }
         }
         .onDisappear {
-            #if !os(Android)
             UIApplication.shared.isIdleTimerDisabled = false
-            #endif
         }
     }
 
@@ -415,7 +404,6 @@ struct RecipeDetailView: View {
                         }
                     )
                     .cornerRadius(8)
-                    #if !os(Android)
                     .onLongPressGesture(minimumDuration: 0.5, pressing: { pressing in
                         if pressing && !recipeVM.isLocalMode {
                             pressedIngredientIndex = index
@@ -441,18 +429,6 @@ struct RecipeDetailView: View {
                             showShoppingListPicker = true
                         }
                     }
-                    #else
-                    .onLongPressGesture {
-                        if !recipeVM.isLocalMode {
-                            if let defaultListId = AppSettings.shared.defaultShoppingListId, !defaultListId.isEmpty {
-                                addIngredientToDefault(ingredient: ingredient, listId: defaultListId)
-                            } else {
-                                selectedIngredient = ingredient
-                                showShoppingListPicker = true
-                            }
-                        }
-                    }
-                    #endif
                 }
             }
         }

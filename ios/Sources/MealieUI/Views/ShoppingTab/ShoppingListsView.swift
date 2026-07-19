@@ -1,10 +1,5 @@
 import Foundation
-import SkipFuse
-#if os(Android)
-import SkipFuseUI
-#else
 import SwiftUI
-#endif
 import MealieModel
 
 struct ShoppingListsView: View {

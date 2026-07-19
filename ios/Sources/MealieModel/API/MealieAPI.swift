@@ -1,5 +1,4 @@
 import Foundation
-import SkipFuse
 
 private let logger = Log(category: "API")
 

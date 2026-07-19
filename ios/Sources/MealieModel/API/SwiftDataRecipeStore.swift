@@ -1,4 +1,3 @@
-#if !os(Android)
 import Foundation
 import SwiftData
 
@@ -225,4 +224,3 @@ public class SwiftDataRecipeStore: RecipePersistence, @unchecked Sendable {
         }
     }
 }
-#endif

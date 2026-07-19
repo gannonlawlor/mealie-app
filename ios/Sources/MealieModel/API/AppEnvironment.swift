@@ -1,5 +1,4 @@
 import Foundation
-import SkipFuse
 
 public struct AppEnvironment {
     /// Returns true for debug builds and TestFlight (non-App Store) builds.
@@ -7,8 +6,6 @@ public struct AppEnvironment {
     public static var showDebugInfo: Bool {
         #if DEBUG
         return true
-        #elseif os(Android)
-        return false
         #else
         // TestFlight receipts use "sandboxReceipt"
         return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"

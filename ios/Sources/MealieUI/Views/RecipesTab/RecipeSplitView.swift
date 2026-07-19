@@ -1,10 +1,5 @@
 import Foundation
-import SkipFuse
-#if os(Android)
-import SkipFuseUI
-#else
 import SwiftUI
-#endif
 import MealieModel
 
 struct RecipeSplitView: View {
@@ -151,9 +146,7 @@ struct RecipeSplitView: View {
                     .padding(.vertical, 4)
                 }
                 .listRowInsets(EdgeInsets())
-                #if !os(Android)
                 .listRowSeparator(.hidden)
-                #endif
             }
 
             if recipeVM.isLoading && recipeVM.recipes.isEmpty {
@@ -186,7 +179,6 @@ struct RecipeSplitView: View {
                             ? Color.accentColor.opacity(0.12)
                             : Color.clear
                     )
-                    #if !os(Android)
                     .swipeActions(edge: .leading) {
                         if let slug = recipe.slug {
                             Button {
@@ -219,7 +211,6 @@ struct RecipeSplitView: View {
                             }
                         }
                     }
-                    #endif
                 }
 
                 if recipeVM.currentPage < recipeVM.totalPages {

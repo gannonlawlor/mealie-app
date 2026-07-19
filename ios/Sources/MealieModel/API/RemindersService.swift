@@ -1,5 +1,4 @@
 import Foundation
-import SkipFuse
 
 #if canImport(EventKit)
 import EventKit

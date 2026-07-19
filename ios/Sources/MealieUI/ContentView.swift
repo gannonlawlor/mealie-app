@@ -1,10 +1,5 @@
 import Foundation
-import SkipFuse
-#if os(Android)
-import SkipFuseUI
-#else
 import SwiftUI
-#endif
 import MealieModel
 
 public struct ContentView: View {
@@ -15,9 +10,7 @@ public struct ContentView: View {
     @State var selectedTab: AppTab = .recipes
     @State var appTheme: AppTheme = AppSettings.shared.theme
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    #if !os(Android)
     @Environment(\.scenePhase) var scenePhase
-    #endif
 
     public init() {
     }
@@ -76,17 +69,12 @@ public struct ContentView: View {
             let recipeURL: String
             if url.scheme == "mealie" {
                 // iOS: mealie://import?url=<encoded_url>
-                #if os(Android)
-                recipeURL = ""
-                #else
                 guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                       let queryURL = components.queryItems?.first(where: { $0.name == "url" })?.value else {
                     return
                 }
                 recipeURL = queryURL
-                #endif
             } else {
-                // Android: raw recipe URL via ACTION_VIEW
                 recipeURL = url.absoluteString
             }
             guard !recipeURL.isEmpty else { return }
@@ -95,7 +83,6 @@ public struct ContentView: View {
                 await recipeVM.importFromURL()
             }
         }
-        #if !os(Android)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 let hadPending = checkPendingShareImport()
@@ -105,10 +92,8 @@ public struct ContentView: View {
                 }
             }
         }
-        #endif
     }
 
-    #if !os(Android)
     @discardableResult
     private func checkPendingShareImport() -> Bool {
         print("[ShareImport] checkPendingShareImport called, isServerConnected: \(authVM.isServerConnected)")
@@ -139,7 +124,6 @@ public struct ContentView: View {
         }
         return true
     }
-    #endif
 
     var mainTabView: some View {
         TabView(selection: $selectedTab) {

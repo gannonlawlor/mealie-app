@@ -1,5 +1,4 @@
 import Foundation
-import SkipFuse
 
 public enum AppMode: String {
     case local = "local"

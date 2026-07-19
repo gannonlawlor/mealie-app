@@ -1,11 +1,6 @@
 import Foundation
-import SkipFuse
-#if os(Android)
-import SkipFuseUI
-#else
 import SwiftUI
 import PhotosUI
-#endif
 import MealieModel
 
 struct EditRecipeView: View {
@@ -26,9 +21,7 @@ struct EditRecipeView: View {
     @State var isSaving = false
     @State var selectedImageData: Data? = nil
     @State var selectedImageURL: URL? = nil
-    #if !os(Android)
     @State var selectedPhoto: PhotosPickerItem? = nil
-    #endif
 
     var body: some View {
         NavigationStack {
@@ -60,7 +53,6 @@ struct EditRecipeView: View {
                         .cornerRadius(8)
                     }
 
-                    #if !os(Android)
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
                         Label("Change Image", systemImage: "photo.on.rectangle")
                     }
@@ -77,7 +69,6 @@ struct EditRecipeView: View {
                             }
                         }
                     }
-                    #endif
                 }
 
                 Section("Details") {

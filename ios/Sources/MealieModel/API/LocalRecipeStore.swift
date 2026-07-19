@@ -1,5 +1,4 @@
 import Foundation
-import SkipFuse
 
 private let logger = Log(category: "LocalStore")
 
@@ -13,13 +12,9 @@ public class LocalRecipeStore: @unchecked Sendable {
     private let localDirectoryName = "mealie_local"
 
     private init() {
-        #if !os(Android)
         let useCloudKit = AppSettings.shared.iCloudSync
             && FileManager.default.ubiquityIdentityToken != nil
         store = SwiftDataRecipeStore(useCloudKit: useCloudKit)
-        #else
-        store = AndroidSQLiteRecipeStore()
-        #endif
 
         migrateFromFilesIfNeeded()
     }
@@ -148,11 +143,9 @@ public class LocalRecipeStore: @unchecked Sendable {
         }
 
         // Also migrate from iCloud directory if it was previously used
-        #if !os(Android)
         if AppSettings.shared.iCloudSync {
             migrateFromICloudFiles()
         }
-        #endif
 
         // Migrate favorites
         let favorites = fileStore.loadFavorites()
@@ -177,7 +170,6 @@ public class LocalRecipeStore: @unchecked Sendable {
         logger.info("Migration from file-based storage complete")
     }
 
-    #if !os(Android)
     private func migrateFromICloudFiles() {
         let containerID = "iCloud.com.jackabee.mealie"
         guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerID) else { return }
@@ -216,5 +208,4 @@ public class LocalRecipeStore: @unchecked Sendable {
             store.saveFavorites(existing)
         }
     }
-    #endif
 }

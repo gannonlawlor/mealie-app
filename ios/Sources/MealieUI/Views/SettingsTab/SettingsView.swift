@@ -1,10 +1,5 @@
 import Foundation
-import SkipFuse
-#if os(Android)
-import SkipFuseUI
-#else
 import SwiftUI
-#endif
 import MealieModel
 
 struct SettingsView: View {
@@ -18,11 +13,9 @@ struct SettingsView: View {
     @State var addToReminders: Bool = AppSettings.shared.addToReminders
     @State var localGroceryList: Bool = AppSettings.shared.localGroceryList
     @State var defaultListId: String = AppSettings.shared.defaultShoppingListId ?? ""
-    #if !os(Android)
     @State var iCloudSync: Bool = AppSettings.shared.iCloudSync
     @State var iCloudSyncInitial: Bool = AppSettings.shared.iCloudSync
     @State var iCloudAvailable: Bool = false
-    #endif
 
     var body: some View {
         List {
@@ -78,7 +71,6 @@ struct SettingsView: View {
                 }
             }
 
-            #if !os(Android)
             Section {
                 Toggle("Add to iOS Reminders", isOn: $addToReminders)
                     .onChange(of: addToReminders) { _, newValue in
@@ -96,7 +88,6 @@ struct SettingsView: View {
             } footer: {
                 Text("When adding ingredients to a shopping list, also add them to your Reminders grocery list.")
             }
-            #endif
 
             if authVM.isLocalMode {
                 // Local Mode Info
@@ -115,7 +106,6 @@ struct SettingsView: View {
                     }
                 }
 
-                #if !os(Android)
                 Section {
                     Toggle("iCloud Sync", isOn: $iCloudSync)
                         .disabled(!iCloudAvailable)
@@ -133,7 +123,6 @@ struct SettingsView: View {
                         Text("iCloud is not available. Sign in to iCloud in Settings to enable sync.")
                     }
                 }
-                #endif
             }
 
             if authVM.isServerConnected {
@@ -205,7 +194,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Built with")
                     Spacer()
-                    Text("Skip + SwiftUI")
+                    Text("SwiftUI")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -271,9 +260,7 @@ struct SettingsView: View {
                     await shoppingVM.loadShoppingLists()
                 }
             }
-            #if !os(Android)
             iCloudAvailable = ICloudSyncManager.shared.isICloudAvailable()
-            #endif
         }
         .sheet(isPresented: $showLoginSheet) {
             LoginView(authVM: authVM, hideLocalMode: authVM.isLocalMode)

@@ -127,35 +127,37 @@ final class MealPlanTests: XCTestCase {
         XCTAssertEqual(result, "2025-03-15")
     }
 
-    func testStartOfWeekReturnsStartOfWeek() {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone.current
-
-        // Use a known Wednesday
-        let wednesday = formatter.date(from: "2025-01-15")!
-        let weekStart = MealPlanViewModel.startOfWeek(for: wednesday)
-        let result = MealPlanViewModel.dateString(weekStart)
-
-        // The start of week depends on locale, but should be a consistent day
-        // Verify it's before or equal to the input date
-        XCTAssertTrue(weekStart <= wednesday)
-
-        // Verify the result is a valid date string
-        XCTAssertNotNil(formatter.date(from: result))
-
-        // Verify calling startOfWeek on the result returns the same date (idempotent)
-        let again = MealPlanViewModel.startOfWeek(for: weekStart)
-        XCTAssertEqual(MealPlanViewModel.dateString(again), result)
+    func testCurrentWeekStartDefaultsToStartOfToday() {
+        let vm = MealPlanViewModel()
+        XCTAssertEqual(vm.currentWeekStart, Calendar.current.startOfDay(for: Date()))
     }
 
-    func testStartOfWeekIsIdempotent() {
-        let date = Date()
-        let first = MealPlanViewModel.startOfWeek(for: date)
-        let second = MealPlanViewModel.startOfWeek(for: first)
-        XCTAssertEqual(
-            MealPlanViewModel.dateString(first),
-            MealPlanViewModel.dateString(second)
-        )
+    func testWeekDatesReturnsSevenConsecutiveDays() {
+        let vm = MealPlanViewModel()
+        XCTAssertEqual(vm.weekDates.count, 7)
+        XCTAssertEqual(vm.weekDates.first, vm.currentWeekStart)
+        for (previous, next) in zip(vm.weekDates, vm.weekDates.dropFirst()) {
+            let expected = Calendar.current.date(byAdding: .day, value: 1, to: previous)
+            XCTAssertEqual(next, expected)
+        }
+    }
+
+    func testPreviousAndNextWeekShiftBySevenDays() {
+        let vm = MealPlanViewModel()
+        let start = vm.currentWeekStart
+
+        vm.nextWeek()
+        XCTAssertEqual(vm.currentWeekStart, Calendar.current.date(byAdding: .day, value: 7, to: start))
+
+        vm.previousWeek()
+        XCTAssertEqual(vm.currentWeekStart, start)
+    }
+
+    func testGoToThisWeekResetsToStartOfToday() {
+        let vm = MealPlanViewModel()
+        vm.nextWeek()
+        vm.nextWeek()
+        vm.goToThisWeek()
+        XCTAssertEqual(vm.currentWeekStart, Calendar.current.startOfDay(for: Date()))
     }
 }

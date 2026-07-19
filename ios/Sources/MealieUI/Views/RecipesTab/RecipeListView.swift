@@ -1,10 +1,5 @@
 import Foundation
-import SkipFuse
-#if os(Android)
-import SkipFuseUI
-#else
 import SwiftUI
-#endif
 import MealieModel
 
 struct RecipeListView: View {
@@ -30,13 +25,7 @@ struct RecipeListView: View {
                 }
                 .padding(.top, 4)
             }
-            #if os(Android)
-            if !recipeVM.categories.isEmpty || !recipeVM.tags.isEmpty {
-                filterChips
-            }
-            #else
             activeFilterChip
-            #endif
             recipeList
         }
         .navigationTitle("Recipes")
@@ -84,7 +73,6 @@ struct RecipeListView: View {
         }
     }
 
-    #if !os(Android)
     var activeFilterChip: some View {
         Group {
             if let cat = recipeVM.selectedCategory {
@@ -130,7 +118,6 @@ struct RecipeListView: View {
             }
         }
     }
-    #endif
 
     var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -203,9 +190,7 @@ struct RecipeListView: View {
                     .padding(.vertical, 4)
                 }
                 .listRowInsets(EdgeInsets())
-                #if !os(Android)
                 .listRowSeparator(.hidden)
-                #endif
             }
 
             if recipeVM.isLoading && recipeVM.recipes.isEmpty {
@@ -227,7 +212,6 @@ struct RecipeListView: View {
                             isSavedOffline: !recipeVM.isLocalMode && recipeVM.isOffline(recipeId: recipe.id ?? "")
                         )
                     }
-                    #if !os(Android)
                     .swipeActions(edge: .leading) {
                         if let slug = recipe.slug {
                             Button {
@@ -257,7 +241,6 @@ struct RecipeListView: View {
                             }
                         }
                     }
-                    #endif
                 }
 
                 if recipeVM.currentPage < recipeVM.totalPages {

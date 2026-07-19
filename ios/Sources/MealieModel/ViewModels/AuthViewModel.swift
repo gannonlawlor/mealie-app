@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SkipFuse
 
 private let logger = Log(category: "Auth")
 

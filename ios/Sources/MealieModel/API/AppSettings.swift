@@ -1,5 +1,4 @@
 import Foundation
-import SkipFuse
 
 public enum AppTheme: String, Sendable {
     case system

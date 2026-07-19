@@ -1,5 +1,4 @@
 import Foundation
-import SkipFuse
 
 public struct PendingGroceryItem: Codable, Sendable, Identifiable {
     public let id: String

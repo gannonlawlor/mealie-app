@@ -5,8 +5,6 @@ import OSLog
 #endif
 import SwiftUI
 
-let androidSDK = ProcessInfo.processInfo.environment["android.os.Build.VERSION.SDK_INT"].flatMap({ Int($0) })
-
 public struct RootView: View {
     public init() {
     }
@@ -15,15 +13,14 @@ public struct RootView: View {
         ContentView()
             .task {
                 #if canImport(OSLog)
-                Logger(subsystem: "com.jackabee.mealie", category: "App").info("Mealie App started on \(androidSDK != nil ? "Android" : "iOS")")
+                Logger(subsystem: "com.jackabee.mealie", category: "App").info("Mealie App started on iOS")
                 #else
-                print("[App] Mealie App started on \(androidSDK != nil ? "Android" : "iOS")")
+                print("[App] Mealie App started on iOS")
                 #endif
             }
     }
 }
 
-#if !SKIP
 public protocol MealieAppApp: App {
 }
 
@@ -34,4 +31,3 @@ public extension MealieAppApp {
         }
     }
 }
-#endif
