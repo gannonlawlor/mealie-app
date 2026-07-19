@@ -278,7 +278,7 @@ fun SettingsScreen(authViewModel: AuthViewModel, shoppingViewModel: ShoppingView
 
             // About
             SettingsSection(header = "About") {
-                ValueRow(title = "App Version", value = "1.1.16")
+                ValueRow(title = "App Version", value = com.jackabee.mealie.BuildConfig.VERSION_NAME)
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 ValueRow(title = "Built with", value = "Jetpack Compose")
             }
