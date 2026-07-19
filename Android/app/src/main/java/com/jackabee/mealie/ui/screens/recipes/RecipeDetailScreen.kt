@@ -1,27 +1,35 @@
 package com.jackabee.mealie.ui.screens.recipes
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jackabee.mealie.ui.screens.recipes.components.RecipeDetailContent
+import com.jackabee.mealie.ui.screens.recipes.components.rememberAppContainer
 import com.jackabee.mealie.ui.viewmodel.MealPlanViewModel
 import com.jackabee.mealie.ui.viewmodel.RecipeViewModel
 import com.jackabee.mealie.ui.viewmodel.ShoppingViewModel
 
-// STUB: the real implementation is produced by another agent with this exact
-// signature; this placeholder file is discarded at merge.
+/**
+ * Standalone recipe detail screen (compact layout navigation destination).
+ *
+ * The ViewModel parameters have defaults only so the pre-integration nav host
+ * keeps compiling; integration should always pass the shared instances.
+ */
 @Composable
 fun RecipeDetailScreen(
     slug: String,
-    recipeViewModel: RecipeViewModel,
-    shoppingViewModel: ShoppingViewModel,
-    mealPlanViewModel: MealPlanViewModel,
+    recipeViewModel: RecipeViewModel = viewModel(factory = RecipeViewModel.factory(rememberAppContainer())),
+    shoppingViewModel: ShoppingViewModel = viewModel(factory = ShoppingViewModel.factory(rememberAppContainer())),
+    mealPlanViewModel: MealPlanViewModel = viewModel(factory = MealPlanViewModel.factory(rememberAppContainer())),
     onBack: () -> Unit,
-    onDeleted: () -> Unit,
+    onDeleted: () -> Unit = onBack,
 ) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Recipe: $slug")
-    }
+    RecipeDetailContent(
+        slug = slug,
+        recipeViewModel = recipeViewModel,
+        shoppingViewModel = shoppingViewModel,
+        mealPlanViewModel = mealPlanViewModel,
+        showBackButton = true,
+        onBack = onBack,
+        onDeleted = onDeleted,
+    )
 }
