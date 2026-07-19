@@ -30,9 +30,18 @@ import kotlin.coroutines.resumeWithException
 /** Mirrors Swift RecipeParseError. */
 sealed class RecipeParseException(message: String) : Exception(message) {
     class InvalidUrl : RecipeParseException("Invalid URL")
-    class FetchFailed(detail: String) : RecipeParseException("Fetch failed: $detail")
+    class FetchFailed(val detail: String) : RecipeParseException("Fetch failed: $detail")
     class NoRecipeFound : RecipeParseException("No recipe found on page")
-    class ParsingFailed(detail: String) : RecipeParseException("Parsing failed: $detail")
+    class ParsingFailed(val detail: String) : RecipeParseException("Parsing failed: $detail")
+}
+
+/**
+ * The parsing capability RecipeViewModel depends on, extracted as an interface
+ * so unit tests can inject a fake (implemented by [RecipeUrlParser]).
+ */
+interface RecipeParser {
+    /** Fetches a URL, extracts JSON-LD, and returns a Recipe. Throws [RecipeParseException]. */
+    suspend fun parseRecipe(urlString: String): Recipe
 }
 
 /**
@@ -46,12 +55,12 @@ sealed class RecipeParseException(message: String) : Exception(message) {
 class RecipeUrlParser(
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val localRecipeStore: LocalRecipeStore? = null,
-) {
+) : RecipeParser {
 
     private val lenientJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /** Fetches a URL, extracts JSON-LD, and returns a Recipe with a locally-saved image. */
-    suspend fun parseRecipe(urlString: String): Recipe = withContext(Dispatchers.IO) {
+    override suspend fun parseRecipe(urlString: String): Recipe = withContext(Dispatchers.IO) {
         if (!urlString.startsWith("http://") && !urlString.startsWith("https://")) {
             throw RecipeParseException.InvalidUrl()
         }

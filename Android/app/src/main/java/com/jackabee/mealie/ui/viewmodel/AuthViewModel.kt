@@ -173,6 +173,25 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Mirrors the Swift views setting `showServerSetup = true` directly
+     * ("Change Server" in LoginView, "Connect to Server" in Settings/Sidebar).
+     */
+    fun showServerSetupForm() {
+        _uiState.update { it.copy(showServerSetup = true, errorMessage = "", serverInfo = null) }
+    }
+
+    /** Mirrors the Swift SettingsView `.task` fetching app info when missing. */
+    suspend fun loadServerInfo() {
+        if (_uiState.value.serverInfo != null) return
+        try {
+            val info = withContext(ioDispatcher) { api.getAppInfo() }
+            _uiState.update { it.copy(serverInfo = info) }
+        } catch (e: Exception) {
+            println("Failed to load server info: $e")
+        }
+    }
+
     suspend fun loadCurrentUser() {
         try {
             val user = withContext(ioDispatcher) { api.getCurrentUser() }
