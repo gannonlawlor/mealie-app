@@ -54,17 +54,6 @@ import com.jackabee.mealie.data.model.ShoppingListItem
 import com.jackabee.mealie.ui.viewmodel.ShoppingViewModel
 import kotlinx.coroutines.launch
 
-/**
- * Transitional shim so existing navigation wiring keeps compiling until integration
- * passes the shared ViewModel.
- */
-@Composable
-fun ShoppingDetailScreen(listId: String, onBack: () -> Unit = {}) {
-    val container = (LocalContext.current.applicationContext as MealieApplication).container
-    val shoppingViewModel: ShoppingViewModel = viewModel(factory = ShoppingViewModel.factory(container))
-    ShoppingListDetailScreen(listId = listId, shoppingViewModel = shoppingViewModel, onBack = onBack)
-}
-
 /** Port of ios/Sources/MealieUI/Views/ShoppingTab/ShoppingListDetailView.swift. */
 @Composable
 fun ShoppingListDetailScreen(

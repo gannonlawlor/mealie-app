@@ -74,22 +74,6 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-/**
- * Transitional no-arg overload so existing navigation wiring keeps compiling until
- * integration passes the shared ViewModels and recipe navigation callback.
- */
-@Composable
-fun MealPlanScreen() {
-    val container = (LocalContext.current.applicationContext as MealieApplication).container
-    val mealPlanViewModel: MealPlanViewModel = viewModel(factory = MealPlanViewModel.factory(container))
-    val recipeViewModel: RecipeViewModel = viewModel(factory = RecipeViewModel.factory(container))
-    MealPlanScreen(
-        mealPlanViewModel = mealPlanViewModel,
-        recipeViewModel = recipeViewModel,
-        onOpenRecipe = {},
-    )
-}
-
 /** Port of ios/Sources/MealieUI/Views/MealPlanTab/MealPlanView.swift. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

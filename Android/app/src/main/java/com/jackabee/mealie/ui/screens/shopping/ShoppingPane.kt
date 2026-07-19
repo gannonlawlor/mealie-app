@@ -61,21 +61,6 @@ import com.jackabee.mealie.ui.viewmodel.ShoppingViewModel
 import kotlinx.coroutines.launch
 
 /**
- * Transitional shim so existing navigation wiring keeps compiling until integration
- * passes the shared ViewModel and layout information.
- */
-@Composable
-fun ShoppingScreen(onListSelected: (String) -> Unit = {}) {
-    val container = (LocalContext.current.applicationContext as MealieApplication).container
-    val shoppingViewModel: ShoppingViewModel = viewModel(factory = ShoppingViewModel.factory(container))
-    ShoppingPane(
-        shoppingViewModel = shoppingViewModel,
-        isWideLayout = false,
-        onOpenList = onListSelected,
-    )
-}
-
-/**
  * Shopping lists feature entry point.
  *
  * Compact: full-screen list of shopping lists (port of ShoppingListsView.swift);
