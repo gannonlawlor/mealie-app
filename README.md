@@ -1,15 +1,22 @@
 # Mealie App
 
-A native mobile app for [Mealie](https://mealie.io) — the self-hosted recipe manager. Built with [Skip Fuse](https://skip.tools/docs/modules/skip-fuse/), a single Swift/SwiftUI codebase compiles to **native iOS** and **native Android**.
+Native mobile clients for [Mealie](https://mealie.io) — the self-hosted recipe manager. One repo, two fully native apps:
+
+- **iOS** — Swift / SwiftUI (iPhone + iPad)
+- **Android** — Kotlin / Jetpack Compose, MVVM (phones, foldables, and tablets)
+
+> Previously built with [Skip Fuse](https://skip.tools) as a single cross-compiled codebase; now each platform is fully native. See `docs/ANALYSIS.md` for the rewrite rationale and feature parity checklist.
 
 ## Features
 
-- **Recipes** — Browse, search, import from URL, edit, and favorite recipes
-- **Meal Planning** — Weekly meal plan view with add/delete support
-- **Shopping Lists** — Create lists, add items manually or from recipe ingredients, check off items
+- **Recipes** — Browse, search (including by ingredient), filter by category/tag, import from URL, edit, favorite, and save for offline
+- **Local mode** — Use the app without a server; recipes are parsed from the web (schema.org JSON-LD) and stored on-device
+- **Recipe sync** — In server mode, all recipes sync locally for instant browsing and ingredient search
+- **Meal Planning** — Weekly meal plan view with add/delete, and add-to-plan from any recipe
+- **Shopping Lists** — Create lists, add items manually or from recipe ingredients (long-press), check off items, queue items offline and upload later
+- **Share to import** — Share a recipe URL to the app (iOS share extension / Android share intent) to import it
 - **Dark Mode** — System, Light, and Dark theme options
-- **Offline Cache** — Data loads instantly from local cache, then refreshes from the server
-- **iPad Support** — Adaptive sidebar + split view layout on larger screens
+- **Adaptive layouts** — Sidebar + split view on iPad; bottom bar ↔ navigation rail and two-pane layouts on Android foldables/tablets
 
 ## Screenshots
 
@@ -17,9 +24,9 @@ A native mobile app for [Mealie](https://mealie.io) — the self-hosted recipe m
 
 ## Requirements
 
-- A running [Mealie](https://mealie.io) server (v1.0+)
-- **iOS**: Xcode 16+, iOS 17+
-- **Android**: Swift Android SDK via [Skip](https://skip.tools) (`skip android sdk install`)
+- A running [Mealie](https://mealie.io) server (v2) — or use local mode without one
+- **iOS**: Xcode 26+, iOS 17+
+- **Android**: JDK 21, Android SDK (platform 35, build-tools 35.0.0)
 
 ## Getting Started
 
@@ -29,43 +36,58 @@ A native mobile app for [Mealie](https://mealie.io) — the self-hosted recipe m
    cd mealie-app
    ```
 
-2. Build and run on iOS Simulator:
+2. **iOS** — build and run on the simulator:
    ```sh
-   xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-     -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-     build SKIP_ACTION=none
+   xcodebuild -project ios/Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
+     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+     build
    ```
 
-3. Build for both iOS and Android:
+3. **Android** — point Gradle at your SDK, then build:
    ```sh
-   xcodebuild -project Darwin/MealieApp.xcodeproj -scheme "MealieApp App" \
-     -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-     build SKIP_ACTION=build
+   echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties
+   cd android && ./gradlew assembleDebug
    ```
+   The debug APK lands in `android/app/build/outputs/apk/debug/`.
 
-   The first build downloads ~1GB of Gradle dependencies and is slow. Subsequent builds are fast.
+4. Open the app and enter your Mealie server URL to connect — or choose "Use Without Server".
 
-4. Open the app and enter your Mealie server URL to connect.
+## Running Tests
+
+```sh
+# iOS (must run on a simulator; `swift test` won't work — MealieUI needs UIKit)
+cd ios && xcodebuild test -scheme mealie-app-Package \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+
+# Android
+cd android && ./gradlew test
+```
 
 ## Project Structure
 
 ```
-Sources/
-  MealieApp/      # App entry point, RootView
-  MealieModel/    # API client, Codable models, ViewModels
-  MealieUI/       # All SwiftUI views
-Darwin/           # Xcode project, assets, Info.plist
-Android/          # Android-specific Kotlin entry point
-Skip.env          # Shared config (bundle ID, version)
+ios/
+  Sources/
+    MealieApp/      # App entry point, RootView
+    MealieModel/    # API client, models, stores, @Observable ViewModels
+    MealieUI/       # All SwiftUI views (iPhone tabs + iPad sidebar/split)
+  Tests/            # XCTest unit tests
+  Darwin/           # Xcode project, assets, ShareExtension
+android/
+  app/src/main/java/com/jackabee/mealie/
+    data/           # models, Retrofit API, auth, stores, JSON-LD parser
+    di/             # AppContainer (manual DI)
+    ui/             # theme, navigation, StateFlow ViewModels, Compose screens
+  app/src/test/     # JUnit unit tests
+docs/               # ANALYSIS.md (feature inventory), UI_SPECS.md (screen specs)
+scripts/            # release.sh (version bump + TestFlight)
 ```
 
 ## Tech Stack
 
-- **Swift 6** / **SwiftUI** — UI and business logic
-- **Skip Fuse** — Cross-platform bridging (native Swift on Android via Kotlin/JVM)
-- **URLSession** — Networking
-- **OSLog** — Structured logging (iOS), with print fallback (Android)
-- **Keychain** — Secure token storage (via skip-keychain)
+**iOS**: Swift 6, SwiftUI, `@Observable` ViewModels, URLSession, SwiftData (local recipes, optional iCloud sync), OSLog
+
+**Android**: Kotlin 2.1, Jetpack Compose + Material 3 (adaptive), ViewModel + StateFlow, Retrofit + OkHttp + kotlinx.serialization, Room, Coil, Navigation Compose
 
 ## License
 
