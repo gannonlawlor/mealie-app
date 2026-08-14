@@ -26,16 +26,46 @@ public class AuthService: @unchecked Sendable {
     private let passwordKey = "mealie_password"
     private let savedServersKey = "mealie_saved_servers"
 
-    private init() {}
+    /// Session state lives in the App Group container so the Share Extension
+    /// can import a shared link itself instead of only queueing it. Falls back
+    /// to standard defaults if the entitlement is missing.
+    let store: UserDefaults
+
+    private init() {
+        store = SharedAppGroup.defaults ?? .standard
+        migrateFromStandardDefaults()
+    }
+
+    /// Copies a pre-App-Group session into the group container so updating the
+    /// app does not log anyone out. Idempotent: it only fills keys the group
+    /// container is missing, and clears each one from standard defaults after,
+    /// so later launches find nothing left to move.
+    private func migrateFromStandardDefaults() {
+        guard store != UserDefaults.standard else { return }
+        let standard = UserDefaults.standard
+        for key in [serverURLKey, tokenKey, userIdKey, appModeKey, emailKey, passwordKey] {
+            guard let value = standard.string(forKey: key) else { continue }
+            if store.string(forKey: key) == nil {
+                store.set(value, forKey: key)
+            }
+            standard.removeObject(forKey: key)
+        }
+        if let servers = standard.data(forKey: savedServersKey) {
+            if store.data(forKey: savedServersKey) == nil {
+                store.set(servers, forKey: savedServersKey)
+            }
+            standard.removeObject(forKey: savedServersKey)
+        }
+    }
 
     // MARK: - App Mode
 
     public var savedAppMode: AppMode {
         get {
-            let raw = UserDefaults.standard.string(forKey: appModeKey) ?? "server"
+            let raw = store.string(forKey: appModeKey) ?? "server"
             return AppMode(rawValue: raw) ?? .server
         }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: appModeKey) }
+        set { store.set(newValue.rawValue, forKey: appModeKey) }
     }
 
     public func startLocalMode() {
@@ -45,37 +75,37 @@ public class AuthService: @unchecked Sendable {
     // MARK: - Server URL
 
     public var savedServerURL: String? {
-        get { UserDefaults.standard.string(forKey: serverURLKey) }
-        set { UserDefaults.standard.set(newValue, forKey: serverURLKey) }
+        get { store.string(forKey: serverURLKey) }
+        set { store.set(newValue, forKey: serverURLKey) }
     }
 
     // MARK: - Token Management
 
     public var savedToken: String? {
-        get { UserDefaults.standard.string(forKey: tokenKey) }
-        set { UserDefaults.standard.set(newValue, forKey: tokenKey) }
+        get { store.string(forKey: tokenKey) }
+        set { store.set(newValue, forKey: tokenKey) }
     }
 
     public var savedUserId: String? {
-        get { UserDefaults.standard.string(forKey: userIdKey) }
-        set { UserDefaults.standard.set(newValue, forKey: userIdKey) }
+        get { store.string(forKey: userIdKey) }
+        set { store.set(newValue, forKey: userIdKey) }
     }
 
     public var savedEmail: String? {
-        get { UserDefaults.standard.string(forKey: emailKey) }
-        set { UserDefaults.standard.set(newValue, forKey: emailKey) }
+        get { store.string(forKey: emailKey) }
+        set { store.set(newValue, forKey: emailKey) }
     }
 
     public var savedPassword: String? {
-        get { UserDefaults.standard.string(forKey: passwordKey) }
-        set { UserDefaults.standard.set(newValue, forKey: passwordKey) }
+        get { store.string(forKey: passwordKey) }
+        set { store.set(newValue, forKey: passwordKey) }
     }
 
     // MARK: - Saved Servers
 
     public var savedServers: [SavedServer] {
         get {
-            guard let data = UserDefaults.standard.data(forKey: savedServersKey),
+            guard let data = store.data(forKey: savedServersKey),
                   let servers = try? JSONDecoder().decode([SavedServer].self, from: data) else {
                 return []
             }
@@ -83,7 +113,7 @@ public class AuthService: @unchecked Sendable {
         }
         set {
             if let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: savedServersKey)
+                store.set(data, forKey: savedServersKey)
             }
         }
     }

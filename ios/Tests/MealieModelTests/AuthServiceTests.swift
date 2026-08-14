@@ -7,17 +7,21 @@ final class AuthServiceTests: XCTestCase {
     private let savedServersKey = "mealie_saved_servers"
     private var originalData: Data?
 
+    /// AuthService persists into the App Group container (shared with the
+    /// Share Extension), so the tests have to reset that same store.
+    private var store: UserDefaults { AuthService.shared.store }
+
     override func setUp() {
         super.setUp()
-        originalData = UserDefaults.standard.data(forKey: savedServersKey)
-        UserDefaults.standard.removeObject(forKey: savedServersKey)
+        originalData = store.data(forKey: savedServersKey)
+        store.removeObject(forKey: savedServersKey)
     }
 
     override func tearDown() {
         if let originalData {
-            UserDefaults.standard.set(originalData, forKey: savedServersKey)
+            store.set(originalData, forKey: savedServersKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: savedServersKey)
+            store.removeObject(forKey: savedServersKey)
         }
         super.tearDown()
     }

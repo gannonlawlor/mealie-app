@@ -358,15 +358,12 @@ private let logger = Log(category: "Recipes")
 
         do {
             let slug = try await MealieAPI.shared.createRecipeFromURL(url: importURL)
-            importMessage = "Recipe imported successfully!"
             importURL = ""
             isImporting = false
-            // Fetch the new recipe detail and add to sync store
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            if let recipe = try? await MealieAPI.shared.getRecipe(slug: slug) {
-                RecipeSyncService.shared.updateRecipe(recipe)
-            }
-            await loadRecipes(reset: true)
+            let landed = await ingestImportedRecipe(slug: slug)
+            importMessage = landed
+                ? "Recipe imported successfully!"
+                : "Recipe imported — the server is still processing it."
             return true
         } catch {
             importMessage = "Failed to import recipe. Check the URL."
@@ -374,6 +371,35 @@ private let logger = Log(category: "Recipes")
             isImporting = false
             return false
         }
+    }
+
+    /// Pulls a recipe the server has just created into the sync store and
+    /// refreshes the list.
+    ///
+    /// In synced server mode `loadRecipes` reads the sync store, so a brand new
+    /// recipe is invisible until it is written there. Mealie can still be
+    /// scraping the page when the create call returns, so this retries the
+    /// fetch for a few seconds before giving up.
+    ///
+    /// Returns whether the recipe was actually fetched. The list is refreshed
+    /// either way, so a slow import still shows up on the next refresh or sync.
+    @discardableResult
+    public func ingestImportedRecipe(slug: String) async -> Bool {
+        var fetched: Recipe? = nil
+        for delayMs in [400, 800, 1_500, 2_500] {
+            try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+            if let recipe = try? await MealieAPI.shared.getRecipe(slug: slug) {
+                fetched = recipe
+                break
+            }
+        }
+        if let recipe = fetched {
+            RecipeSyncService.shared.updateRecipe(recipe)
+        } else {
+            logger.error("Imported recipe \(slug) was not readable back from the server yet")
+        }
+        await loadRecipes(reset: true)
+        return fetched != nil
     }
 
     public func confirmImportNew() async {

@@ -45,6 +45,10 @@ public struct ContentView: View {
             } else {
                 recipeVM.loadFavorites(user: nil)
             }
+            // scenePhase may already be .active on a cold launch, so the
+            // onChange below never fires for links shared while the app was
+            // not running.
+            await processShareImports()
         }
         .onChange(of: authVM.isServerConnected) { _, connected in
             recipeVM.isLocalMode = !connected
@@ -85,44 +89,72 @@ public struct ContentView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                let hadPending = checkPendingShareImport()
-                if !hadPending && authVM.isServerConnected {
-                    // Refresh recipe list when returning to foreground
-                    Task { await recipeVM.loadRecipes(reset: true) }
-                }
+                Task { await processShareImports() }
             }
         }
     }
 
-    @discardableResult
-    private func checkPendingShareImport() -> Bool {
-        print("[ShareImport] checkPendingShareImport called, isServerConnected: \(authVM.isServerConnected)")
-        guard authVM.isServerConnected else { return false }
-        let appGroupID = "group.com.jackabee.mealie"
-        let pendingURLKey = "pendingImportURL"
-        guard let defaults = UserDefaults(suiteName: appGroupID) else {
-            print("[ShareImport] FAILED to open App Group UserDefaults with suite: \(appGroupID)")
-            return false
+    /// Settles anything the Share Extension left behind: recipes it already
+    /// created on the server (which still need pulling into the sync store so
+    /// the list shows them), and links it could not import itself.
+    @MainActor
+    private func processShareImports() async {
+        guard let queue = SharedImportQueue.shared else {
+            print("[ShareImport] App Group unavailable — cannot read shared imports")
+            if authVM.isServerConnected {
+                await recipeVM.loadRecipes(reset: true)
+            }
+            return
         }
-        let urlString = defaults.string(forKey: pendingURLKey)
-        print("[ShareImport] pendingImportURL value: \(urlString ?? "nil")")
-        guard let urlString = urlString, !urlString.isEmpty else {
-            return false
-        }
-        print("[ShareImport] importing URL: \(urlString)")
-        recipeVM.importURL = urlString
-        selectedTab = .recipes
-        Task {
-            let success = await recipeVM.importFromURL()
-            if success {
-                defaults.removeObject(forKey: pendingURLKey)
-                defaults.synchronize()
-                print("[ShareImport] cleared pending URL after successful import")
-            } else {
-                print("[ShareImport] import failed, keeping URL for retry")
+
+        let completed = queue.completedSlugs()
+        let pending = queue.pendingURLs()
+        print("[ShareImport] completed: \(completed.count), pending: \(pending.count), serverConnected: \(authVM.isServerConnected)")
+
+        // Imports the extension finished — fetch them so they appear right away.
+        if !completed.isEmpty && authVM.isServerConnected {
+            queue.clearCompleted()
+            selectedTab = .recipes
+            for slug in completed {
+                await recipeVM.ingestImportedRecipe(slug: slug)
             }
         }
-        return true
+
+        guard !pending.isEmpty else {
+            if completed.isEmpty && authVM.isServerConnected {
+                // Refresh recipe list when returning to foreground
+                await recipeVM.loadRecipes(reset: true)
+            }
+            return
+        }
+
+        // Signed out of a server: leave the links queued rather than failing them.
+        guard authVM.isServerConnected || recipeVM.isLocalMode else {
+            print("[ShareImport] not connected — leaving \(pending.count) link(s) queued")
+            return
+        }
+
+        selectedTab = .recipes
+        var failed: [String] = []
+        for urlString in pending {
+            recipeVM.importURL = urlString
+            if await recipeVM.importFromURL() {
+                queue.remove(urlString)
+                print("[ShareImport] imported queued link: \(urlString)")
+            } else {
+                failed.append(urlString)
+                print("[ShareImport] import failed, keeping for retry: \(urlString)")
+            }
+            // A duplicate needs the user's answer before importing anything else.
+            if recipeVM.showDuplicateAlert { break }
+        }
+
+        if !failed.isEmpty {
+            recipeVM.errorMessage = failed.count == 1
+                ? "A shared link couldn't be imported. It will be retried next time you open Mealie."
+                : "\(failed.count) shared links couldn't be imported. They will be retried next time you open Mealie."
+            recipeVM.errorDetail = failed.joined(separator: "\n")
+        }
     }
 
     var mainTabView: some View {

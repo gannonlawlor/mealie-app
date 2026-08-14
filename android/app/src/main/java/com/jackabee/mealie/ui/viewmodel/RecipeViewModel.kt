@@ -347,24 +347,56 @@ class RecipeViewModel(
 
         return try {
             val slug = withContext(ioDispatcher) { api.createRecipeFromURL(importURL) }
+            _uiState.update { it.copy(importURL = "", isImporting = false) }
+            val landed = ingestImportedRecipe(slug)
             _uiState.update {
-                it.copy(importMessage = "Recipe imported successfully!", importURL = "", isImporting = false)
+                it.copy(
+                    importMessage = if (landed) {
+                        "Recipe imported successfully!"
+                    } else {
+                        "Recipe imported — the server is still processing it."
+                    },
+                )
             }
-            // Fetch the new recipe detail and add to sync store
-            delay(500)
-            try {
-                val recipe = withContext(ioDispatcher) { api.getRecipe(slug) }
-                withContext(ioDispatcher) { syncService.updateRecipe(recipe) }
-            } catch (_: Exception) {
-                // Mirrors Swift `try?` — the import itself already succeeded.
-            }
-            loadRecipes(reset = true)
             true
         } catch (e: Exception) {
             println("Failed to import recipe: $e")
             _uiState.update { it.copy(importMessage = "Failed to import recipe. Check the URL.", isImporting = false) }
             false
         }
+    }
+
+    /**
+     * Pulls a recipe the server has just created into the sync store and
+     * refreshes the list.
+     *
+     * In synced server mode [loadRecipes] reads the sync store, so a brand new
+     * recipe stays invisible until it is written there. Mealie can still be
+     * scraping the page when the create call returns, so the fetch is retried
+     * for a few seconds before giving up.
+     *
+     * Returns whether the recipe was actually fetched. The list is refreshed
+     * either way, so a slow import still appears on the next refresh or sync.
+     */
+    suspend fun ingestImportedRecipe(slug: String): Boolean {
+        var fetched: Recipe? = null
+        for (delayMs in listOf(400L, 800L, 1500L, 2500L)) {
+            delay(delayMs)
+            fetched = try {
+                withContext(ioDispatcher) { api.getRecipe(slug) }
+            } catch (_: Exception) {
+                null
+            }
+            if (fetched != null) break
+        }
+        val recipe = fetched
+        if (recipe != null) {
+            withContext(ioDispatcher) { syncService.updateRecipe(recipe) }
+        } else {
+            println("Imported recipe $slug was not readable back from the server yet")
+        }
+        loadRecipes(reset = true)
+        return recipe != null
     }
 
     suspend fun confirmImportNew() {

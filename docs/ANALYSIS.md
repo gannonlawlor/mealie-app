@@ -76,8 +76,11 @@ Both apps must compile, keep the current feature set, and carry unit tests.
   local-mode recipe count. iOS-only: Reminders toggle, iCloud sync (SwiftData + CloudKit).
 
 ### Platform integration
-- iOS: Share extension → App Group `pendingImportURL` → imported on foreground;
-  `mealie://import?url=` deep link.
+- iOS: Share extension imports against the server itself (session lives in the App Group)
+  and reports the real outcome; anything it can't send — local mode, signed out, server
+  unreachable — goes to the App Group queue `pendingImportURLs` and is imported when the app
+  next opens. Slugs it did create land in `completedImportSlugs` so the app can pull them into
+  the sync store. Also `mealie://import?url=` deep link.
 - Android: `ACTION_SEND` (text/plain) and `ACTION_VIEW` (http/https) → import.
 
 ## API quirks worth preserving

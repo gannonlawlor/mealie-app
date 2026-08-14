@@ -260,6 +260,45 @@ class RecipeViewModelTest {
         assertEquals("Imported", env.syncService.loadRecipeBySlug("new-slug")?.name)
     }
 
+    /** Mealie may still be scraping when create/url returns, so the fetch retries. */
+    @Test
+    fun `server import retries until the new recipe is readable`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.api.createRecipeFromURLHandler = { "new-slug" }
+        var attempts = 0
+        env.api.getRecipeHandler = { slug ->
+            attempts += 1
+            if (attempts < 3) throw httpException(404, "not found")
+            Recipe(id = "rid-1", slug = slug, name = "Imported")
+        }
+        env.vm.updateImportURL("https://example.com/recipe")
+
+        val result = env.vm.importFromURL()
+
+        assertTrue(result)
+        assertEquals(3, attempts)
+        assertEquals("Recipe imported successfully!", env.vm.uiState.value.importMessage)
+        assertEquals("Imported", env.syncService.loadRecipeBySlug("new-slug")?.name)
+    }
+
+    @Test
+    fun `server import says so when the recipe is not readable back yet`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.api.createRecipeFromURLHandler = { "new-slug" }
+        env.api.getRecipeHandler = { throw httpException(404, "not found") }
+        env.vm.updateImportURL("https://example.com/recipe")
+
+        val result = env.vm.importFromURL()
+
+        // The import itself succeeded — only the read-back did not.
+        assertTrue(result)
+        assertEquals(
+            "Recipe imported — the server is still processing it.",
+            env.vm.uiState.value.importMessage,
+        )
+        assertNull(env.syncService.loadRecipeBySlug("new-slug"))
+    }
+
     @Test
     fun `server import failure shows message`() = runTest(mainRule.dispatcher) {
         val env = env()
