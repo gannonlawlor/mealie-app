@@ -223,7 +223,9 @@ struct RecipeListView: View {
                             .tint(.orange)
                         }
                     }
-                    .swipeActions(edge: .trailing) {
+                    // allowsFullSwipe: false so a left swipe always reveals the
+                    // buttons — a full swipe never deletes on its own.
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if let slug = recipe.slug {
                             Button(role: .destructive) {
                                 Task { await recipeVM.deleteRecipe(slug: slug) }

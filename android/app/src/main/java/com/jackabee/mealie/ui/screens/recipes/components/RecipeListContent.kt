@@ -67,6 +67,8 @@ fun RecipeListContent(
     val keyboard = LocalSoftwareKeyboardController.current
     var isRefreshing by remember { mutableStateOf(false) }
     var dismissedError by remember { mutableStateOf<String?>(null) }
+    // Slug of the row currently swiped open — at most one at a time.
+    var revealedSlug by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = modifier.fillMaxSize()) {
         // Search field
@@ -230,32 +232,50 @@ fun RecipeListContent(
                             val recipe = displayedRecipes[index]
                             val slug = recipe.slug ?: ""
                             val recipeId = recipe.id ?: ""
-                            RecipeRow(
-                                recipe = recipe,
-                                imageModel = recipe.id?.let {
-                                    thumbnailImageModel(container, state.isLocalMode, it)
+                            val delete = {
+                                revealedSlug = null
+                                if (slug.isNotEmpty()) {
+                                    scope.launch { recipeViewModel.deleteRecipe(slug) }
+                                }
+                                Unit
+                            }
+                            SwipeToRevealDelete(
+                                isRevealed = slug.isNotEmpty() && revealedSlug == slug,
+                                onRevealChange = { revealed ->
+                                    revealedSlug = if (revealed && slug.isNotEmpty()) slug else null
                                 },
-                                isSavedOffline = !state.isLocalMode && state.offlineRecipeIds.contains(recipeId),
-                                isFavorite = state.favoriteRecipes.contains(slug),
-                                isSelected = selectedSlug != null && selectedSlug == recipe.slug,
-                                showOfflineAction = !state.isLocalMode,
-                                onClick = { if (slug.isNotEmpty()) onRecipeClick(slug) },
-                                onToggleFavorite = {
-                                    if (slug.isNotEmpty()) {
-                                        scope.launch { recipeViewModel.toggleFavorite(slug, userId) }
-                                    }
-                                },
-                                onToggleOffline = {
-                                    if (slug.isNotEmpty() && recipeId.isNotEmpty()) {
-                                        scope.launch { recipeViewModel.toggleOffline(slug, recipeId) }
-                                    }
-                                },
-                                onDelete = {
-                                    if (slug.isNotEmpty()) {
-                                        scope.launch { recipeViewModel.deleteRecipe(slug) }
-                                    }
-                                },
-                            )
+                                onDelete = delete,
+                            ) {
+                                RecipeRow(
+                                    recipe = recipe,
+                                    imageModel = recipe.id?.let {
+                                        thumbnailImageModel(container, state.isLocalMode, it)
+                                    },
+                                    isSavedOffline = !state.isLocalMode && state.offlineRecipeIds.contains(recipeId),
+                                    isFavorite = state.favoriteRecipes.contains(slug),
+                                    isSelected = selectedSlug != null && selectedSlug == recipe.slug,
+                                    showOfflineAction = !state.isLocalMode,
+                                    // While a row is swiped open, the first tap just closes it.
+                                    onClick = {
+                                        if (revealedSlug != null) {
+                                            revealedSlug = null
+                                        } else if (slug.isNotEmpty()) {
+                                            onRecipeClick(slug)
+                                        }
+                                    },
+                                    onToggleFavorite = {
+                                        if (slug.isNotEmpty()) {
+                                            scope.launch { recipeViewModel.toggleFavorite(slug, userId) }
+                                        }
+                                    },
+                                    onToggleOffline = {
+                                        if (slug.isNotEmpty() && recipeId.isNotEmpty()) {
+                                            scope.launch { recipeViewModel.toggleOffline(slug, recipeId) }
+                                        }
+                                    },
+                                    onDelete = delete,
+                                )
+                            }
                         }
 
                         // Infinite scroll: when the loader row becomes visible, load the next page.
