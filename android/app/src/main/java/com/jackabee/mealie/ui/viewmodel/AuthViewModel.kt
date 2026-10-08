@@ -27,6 +27,8 @@ import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
 import java.io.IOException
 
+private const val TAG = "AuthViewModel"
+
 /** UI state for the auth flow. Port of the Swift AuthViewModel's observable properties. */
 data class AuthUiState(
     val serverURL: String = "",
@@ -112,7 +114,7 @@ class AuthViewModel(
                 it.copy(serverInfo = info, showServerSetup = false, serverURL = url, isLoading = false)
             }
         } catch (e: Exception) {
-            println("Server validation failed: $e")
+            AppLog.w(TAG, "Server validation failed: $e", e)
             _uiState.update {
                 it.copy(
                     errorMessage = "Could not connect to server. Check the URL and try again.",
@@ -162,13 +164,13 @@ class AuthViewModel(
             }
             _uiState.update { it.copy(errorMessage = message, isLoading = false) }
         } catch (e: SerializationException) {
-            println("Login decoding error: $e")
+            AppLog.w(TAG, "Login decoding error: $e", e)
             _uiState.update { it.copy(errorMessage = "Login failed. Please try again.", isLoading = false) }
         } catch (e: IOException) {
-            println("Login error: $e")
+            AppLog.w(TAG, "Login error: $e", e)
             _uiState.update { it.copy(errorMessage = "Connection failed. Check your network.", isLoading = false) }
         } catch (e: Exception) {
-            println("Login API error: $e")
+            AppLog.w(TAG, "Login API error: $e", e)
             _uiState.update { it.copy(errorMessage = "Login failed. Please try again.", isLoading = false) }
         }
     }
@@ -188,7 +190,7 @@ class AuthViewModel(
             val info = withContext(ioDispatcher) { api.getAppInfo() }
             _uiState.update { it.copy(serverInfo = info) }
         } catch (e: Exception) {
-            println("Failed to load server info: $e")
+            AppLog.w(TAG, "Failed to load server info: $e", e)
         }
     }
 
@@ -197,7 +199,7 @@ class AuthViewModel(
             val user = withContext(ioDispatcher) { api.getCurrentUser() }
             _uiState.update { it.copy(currentUser = user) }
         } catch (e: Exception) {
-            println("Failed to load user: $e")
+            AppLog.w(TAG, "Failed to load user: $e", e)
         }
     }
 

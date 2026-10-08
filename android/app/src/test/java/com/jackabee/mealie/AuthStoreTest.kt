@@ -139,4 +139,24 @@ class AuthStoreTest {
         store.onTokenRefreshed("new-token")
         assertEquals("new-token", store.savedToken)
     }
+
+    @Test
+    fun `pending imports enqueue in order and dedupe`() {
+        store.queuePendingImportURL("https://a.example/r1")
+        store.queuePendingImportURL("https://b.example/r2")
+        store.queuePendingImportURL("https://a.example/r1")
+        store.queuePendingImportURL("  ")
+        assertEquals(listOf("https://a.example/r1", "https://b.example/r2"), store.pendingImportURLs())
+    }
+
+    @Test
+    fun `pending imports remove one url and clear the last`() {
+        store.queuePendingImportURL("https://a.example/r1")
+        store.queuePendingImportURL("https://b.example/r2")
+        store.removePendingImportURL("https://a.example/r1")
+        assertEquals(listOf("https://b.example/r2"), store.pendingImportURLs())
+        store.removePendingImportURL("https://b.example/r2")
+        assertEquals(emptyList<String>(), store.pendingImportURLs())
+    }
+
 }

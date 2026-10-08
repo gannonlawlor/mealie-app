@@ -21,6 +21,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+private const val TAG = "MealPlanViewModel"
+
 /** UI state for the meal plan tab. Port of the Swift MealPlanViewModel's observable properties. */
 data class MealPlanUiState(
     val weekEntries: Map<String, List<MealPlanEntry>> = emptyMap(),
@@ -69,7 +71,7 @@ class MealPlanViewModel(
             withContext(ioDispatcher) { cache.saveMealPlanWeek(response.items, startDate) }
             _uiState.update { it.copy(weekEntries = groupEntries(response.items), isLoading = false) }
         } catch (e: Exception) {
-            println("Failed to load meal plans: $e")
+            AppLog.w(TAG, "Failed to load meal plans: $e", e)
             _uiState.update {
                 if (it.weekEntries.isEmpty()) {
                     it.copy(errorMessage = "Failed to load meal plan.", errorDetail = errorDetail(e), isLoading = false)
@@ -85,7 +87,7 @@ class MealPlanViewModel(
             val entries = withContext(ioDispatcher) { api.getTodayMealPlan() }
             _uiState.update { it.copy(todayEntries = entries) }
         } catch (e: Exception) {
-            println("Failed to load today's meal plan: $e")
+            AppLog.w(TAG, "Failed to load today's meal plan: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to load today's meal plan.", errorDetail = errorDetail(e))
             }
@@ -113,7 +115,7 @@ class MealPlanViewModel(
             withContext(ioDispatcher) { api.createMealPlan(plan) }
             loadWeek()
         } catch (e: Exception) {
-            println("Failed to create meal plan: $e")
+            AppLog.w(TAG, "Failed to create meal plan: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to add meal plan.", errorDetail = errorDetail(e))
             }
@@ -125,7 +127,7 @@ class MealPlanViewModel(
             withContext(ioDispatcher) { api.deleteMealPlan(id) }
             loadWeek()
         } catch (e: Exception) {
-            println("Failed to delete meal plan: $e")
+            AppLog.w(TAG, "Failed to delete meal plan: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to delete meal plan.", errorDetail = errorDetail(e))
             }

@@ -4,6 +4,7 @@ import com.jackabee.mealie.data.api.MealieApi
 import com.jackabee.mealie.data.auth.KeyValueStore
 import com.jackabee.mealie.data.model.Recipe
 import com.jackabee.mealie.data.model.RecipeSummary
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -17,6 +18,8 @@ import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
+
+private const val TAG = "RecipeSyncService"
 
 /**
  * Port of ios/Sources/MealieModel/API/RecipeSyncService.swift — mirrors the
@@ -100,7 +103,7 @@ class RecipeSyncService(
                                 try {
                                     id to api.getRecipe(slug)
                                 } catch (e: Exception) {
-                                    println("Failed to fetch recipe $slug: $e")
+                                    AppLog.w(TAG, "Failed to fetch recipe $slug: $e", e)
                                     id to null
                                 }
                             }
@@ -128,7 +131,7 @@ class RecipeSyncService(
                 kv.putLong(lastSyncKey, System.currentTimeMillis())
             }
         } catch (e: Exception) {
-            println("Recipe sync failed: $e")
+            AppLog.w(TAG, "Recipe sync failed: $e", e)
         } finally {
             _isSyncing.value = false
         }
@@ -229,7 +232,7 @@ class RecipeSyncService(
             dir.mkdirs()
             File(dir, "recipe_$id.json").writeText(json.encodeToString(Recipe.serializer(), recipe))
         } catch (e: Exception) {
-            println("Failed to save synced recipe $id: $e")
+            AppLog.w(TAG, "Failed to save synced recipe $id: $e", e)
         }
     }
 
@@ -242,7 +245,7 @@ class RecipeSyncService(
             dir.mkdirs()
             File(dir, summaryIndexFile).writeText(json.encodeToString(summarySerializer, summaries))
         } catch (e: Exception) {
-            println("Failed to save summary index: $e")
+            AppLog.w(TAG, "Failed to save summary index: $e", e)
         }
     }
 

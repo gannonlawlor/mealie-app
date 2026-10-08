@@ -312,6 +312,36 @@ class RecipeViewModelTest {
         assertFalse(env.vm.uiState.value.isImporting)
     }
 
+    /**
+     * Mirrors the AppRoot drain: URLs queued while signed out are popped
+     * (remove-before-import) and imported once auth state is established.
+     * MainActivity's intent gate itself needs Android and is covered live.
+     */
+    @Test
+    fun `queued share urls drain after authentication`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        val authStore = com.jackabee.mealie.data.auth.AuthStore(env.kv, MealieJson, object : com.jackabee.mealie.data.auth.ApiSession {
+            override fun configure(baseUrl: String, token: String) = Unit
+        })
+        authStore.queuePendingImportURL("https://example.com/a")
+        authStore.queuePendingImportURL("https://example.com/b")
+        env.api.createRecipeFromURLHandler = { url -> "slug-for-" + url.substringAfterLast("/") }
+        env.api.getRecipeHandler = { slug -> Recipe(id = "rid-$slug", slug = slug, name = "Imported $slug") }
+
+        val pending = authStore.pendingImportURLs()
+        for (url in pending) {
+            authStore.removePendingImportURL(url)
+            env.vm.updateImportURL(url)
+            env.vm.importFromURL()
+        }
+
+        assertEquals(emptyList<String>(), authStore.pendingImportURLs())
+        assertEquals("", env.vm.uiState.value.importURL)
+        assertEquals("Recipe imported successfully!", env.vm.uiState.value.importMessage)
+        assertEquals("Imported slug-for-b", env.syncService.loadRecipeBySlug("slug-for-b")?.name)
+    }
+
+
     // MARK: Import (local) duplicate detection
 
     @Test

@@ -56,10 +56,13 @@ import com.jackabee.mealie.data.model.Recipe
 import com.jackabee.mealie.data.model.RecipeIngredient
 import com.jackabee.mealie.data.model.RecipeInstruction
 import com.jackabee.mealie.ui.viewmodel.RecipeViewModel
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+
+private const val TAG = "EditRecipeDialog"
 
 /**
  * Full-screen edit-recipe dialog. Also used by the local-mode "Create New
@@ -456,6 +459,6 @@ private fun uriToJpegBytes(context: Context, uri: Uri): ByteArray? = try {
         }
     }
 } catch (e: Exception) {
-    println("Failed to read picked image: $e")
+    AppLog.w(TAG, "Failed to read picked image: $e", e)
     null
 }

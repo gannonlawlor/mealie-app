@@ -17,6 +17,7 @@ import com.jackabee.mealie.data.model.ShoppingListItem
 import com.jackabee.mealie.data.model.ShoppingListPaginatedResponse
 import com.jackabee.mealie.data.model.TagPaginatedResponse
 import com.jackabee.mealie.data.model.User
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -28,6 +29,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
+
+private const val TAG = "MealieApi"
 
 /**
  * High-level API facade mirroring the Swift MealieAPI class. Signatures keep
@@ -122,7 +125,7 @@ class MealieApi(
                     if (response.isSuccessful) response.body?.bytes() else null
                 }
             } catch (e: Exception) {
-                println("Failed to download recipe image for $recipeId: $e")
+                AppLog.w(TAG, "Failed to download recipe image for $recipeId: $e", e)
                 null
             }
         }

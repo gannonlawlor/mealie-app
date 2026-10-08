@@ -50,7 +50,7 @@ The repo also ships a cross-browser extension (`extension/`) that saves recipes 
 
 - A running [Mealie](https://mealie.io) server (v2) — or use local mode without one
 - **iOS**: Xcode 26+, iOS 17+
-- **Android**: JDK 21, Android SDK (platform 35, build-tools 35.0.0)
+- **Android**: JDK 21 (Java 17 toolchain, `compileOptions`/`jvmTarget`), Android SDK (platform 35, build-tools 35.0.0)
 
 ## Getting Started
 
@@ -95,7 +95,8 @@ ios/
     MealieApp/      # App entry point, RootView
     MealieModel/    # API client, models, stores, @Observable ViewModels
     MealieUI/       # All SwiftUI views (iPhone tabs + iPad sidebar/split)
-  Tests/            # XCTest unit tests
+  Tests/MealieModelTests/  # XCTest unit tests
+  Tests/MealieUISnapshotTests/  # snapshot tests
   Darwin/           # Xcode project, assets, ShareExtension
 android/
   app/src/main/java/com/jackabee/mealie/
@@ -106,10 +107,11 @@ android/
 docs/               # ANALYSIS.md (feature inventory), UI_SPECS.md (screen specs)
 scripts/            # release.sh (version bump + TestFlight)
 ```
+Versions are bumped together: `ios/Darwin/MealieApp.xcconfig` (`MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`, currently 1.1.18/21) and `android/app/build.gradle.kts` (`versionName`/`versionCode`, currently 1.1.18/21).
 
 ## Tech Stack
 
-**iOS**: Swift 6, SwiftUI, `@Observable` ViewModels, URLSession, SwiftData (local recipes, optional iCloud sync), OSLog
+**iOS**: Swift 6, SwiftUI, `@Observable` ViewModels, URLSession, SwiftData (local recipes, optional iOS-only iCloud sync), OSLog
 
 **Android**: Kotlin 2.1, Jetpack Compose + Material 3 (adaptive), ViewModel + StateFlow, Retrofit + OkHttp + kotlinx.serialization, Room, Coil, Navigation Compose
 

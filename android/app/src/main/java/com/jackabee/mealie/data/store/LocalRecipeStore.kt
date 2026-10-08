@@ -3,10 +3,13 @@ package com.jackabee.mealie.data.store
 import com.jackabee.mealie.data.auth.KeyValueStore
 import com.jackabee.mealie.data.model.Recipe
 import com.jackabee.mealie.data.model.RecipeSummary
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
+
+private const val TAG = "LocalRecipeStore"
 
 /**
  * Port of ios/Sources/MealieModel/API/LocalRecipeStore.swift, backed by Room
@@ -98,7 +101,7 @@ class LocalRecipeStore(
             file.writeBytes(data)
             file.path
         } catch (e: Exception) {
-            println("Failed to save image for $recipeId: $e")
+            AppLog.w(TAG, "Failed to save image for $recipeId: $e", e)
             ""
         }
     }
@@ -115,7 +118,7 @@ class LocalRecipeStore(
     private fun decode(entity: LocalRecipeEntity): Recipe? = try {
         json.decodeFromString(Recipe.serializer(), entity.json)
     } catch (e: Exception) {
-        println("Failed to decode local recipe ${entity.id}: $e")
+        AppLog.w(TAG, "Failed to decode local recipe ${entity.id}: $e", e)
         null
     }
 

@@ -4,10 +4,13 @@ import com.jackabee.mealie.data.model.MealPlanEntry
 import com.jackabee.mealie.data.model.RecipeCategory
 import com.jackabee.mealie.data.model.RecipeTag
 import com.jackabee.mealie.data.model.ShoppingList
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
+
+private const val TAG = "CacheService"
 
 /**
  * Port of ios/Sources/MealieModel/API/CacheService.swift — JSON files in the
@@ -69,7 +72,7 @@ class CacheService(
             cacheDir.mkdirs()
             File(cacheDir, filename).writeText(json.encodeToString(serializer, value))
         } catch (e: Exception) {
-            println("Cache save error ($filename): $e")
+            AppLog.w(TAG, "Cache save error ($filename): $e", e)
         }
     }
 
@@ -79,7 +82,7 @@ class CacheService(
         return try {
             json.decodeFromString(serializer, file.readText())
         } catch (e: Exception) {
-            println("Cache load error ($filename): $e")
+            AppLog.w(TAG, "Cache load error ($filename): $e", e)
             null
         }
     }

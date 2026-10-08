@@ -82,9 +82,21 @@ fun AppRoot(
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
 
     // Mirrors iOS ContentView .task / .onChange(of: isServerConnected).
-    LaunchedEffect(authState.isServerConnected) {
+    // Also drains share URLs queued while signed out: remove-before-import so a
+    // failed import shows the normal error banner instead of re-queuing in a loop.
+    // Keyed on both flags so local-mode entry (authenticated flips, connected
+    // stays false) drains from this one site just like server login does.
+    LaunchedEffect(authState.isServerConnected, authState.isAuthenticated) {
         val connected = authState.isServerConnected
         recipeViewModel.setLocalMode(!connected)
+        if (authState.isAuthenticated) {
+            val pending = container.authStore.pendingImportURLs()
+            for (url in pending) {
+                container.authStore.removePendingImportURL(url)
+                recipeViewModel.updateImportURL(url)
+                recipeViewModel.importFromURL()
+            }
+        }
         if (connected) {
             authViewModel.loadCurrentUser()
             recipeViewModel.loadFavorites(authViewModel.uiState.value.currentUser)

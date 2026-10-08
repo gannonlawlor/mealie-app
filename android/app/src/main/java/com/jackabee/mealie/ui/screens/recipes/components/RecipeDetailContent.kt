@@ -77,7 +77,10 @@ import com.jackabee.mealie.data.model.RecipeInstruction
 import com.jackabee.mealie.ui.viewmodel.MealPlanViewModel
 import com.jackabee.mealie.ui.viewmodel.RecipeViewModel
 import com.jackabee.mealie.ui.viewmodel.ShoppingViewModel
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.coroutines.launch
+
+private const val TAG = "RecipeDetailContent"
 
 private val SuccessGreen = Color(0xFF4CAF50)
 
@@ -458,7 +461,7 @@ private fun RecipeDetailBody(
                         try {
                             uriHandler.openUri(orgURL)
                         } catch (e: Exception) {
-                            println("Failed to open original recipe URL: $e")
+                            AppLog.w(TAG, "Failed to open original recipe URL: $e", e)
                         }
                     },
                 )

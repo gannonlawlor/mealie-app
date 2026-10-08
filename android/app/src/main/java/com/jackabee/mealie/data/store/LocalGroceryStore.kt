@@ -1,12 +1,15 @@
 package com.jackabee.mealie.data.store
 
 import com.jackabee.mealie.data.auth.KeyValueStore
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.util.UUID
+
+private const val TAG = "LocalGroceryStore"
 
 @Serializable
 data class PendingGroceryItem(
@@ -34,7 +37,7 @@ class LocalGroceryStore(
         return try {
             json.decodeFromString(mapSerializer, raw)
         } catch (e: Exception) {
-            println("Failed to decode pending grocery items: $e")
+            AppLog.w(TAG, "Failed to decode pending grocery items: $e", e)
             emptyMap()
         }
     }
@@ -71,7 +74,7 @@ class LocalGroceryStore(
         try {
             kv.putString(storageKey, json.encodeToString(mapSerializer, data))
         } catch (e: Exception) {
-            println("Failed to encode pending grocery items: $e")
+            AppLog.w(TAG, "Failed to encode pending grocery items: $e", e)
         }
     }
 }

@@ -2,10 +2,13 @@ package com.jackabee.mealie.data.store
 
 import com.jackabee.mealie.data.auth.KeyValueStore
 import com.jackabee.mealie.data.model.Recipe
+import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
+
+private const val TAG = "OfflineRecipeStore"
 
 /**
  * Port of ios/Sources/MealieModel/API/OfflineRecipeStore.swift — user-pinned
@@ -29,7 +32,7 @@ class OfflineRecipeStore(
             dir.mkdirs()
             File(dir, "recipe_$id.json").writeText(json.encodeToString(Recipe.serializer(), recipe))
         } catch (e: Exception) {
-            println("Failed to save offline recipe $id: $e")
+            AppLog.w(TAG, "Failed to save offline recipe $id: $e", e)
             return
         }
 
@@ -38,7 +41,7 @@ class OfflineRecipeStore(
                 imagesDir.mkdirs()
                 File(imagesDir, "$id.jpg").writeBytes(imageData)
             } catch (e: Exception) {
-                println("Failed to save offline image for $id: $e")
+                AppLog.w(TAG, "Failed to save offline image for $id: $e", e)
             }
         }
 
@@ -51,7 +54,7 @@ class OfflineRecipeStore(
         return try {
             json.decodeFromString(Recipe.serializer(), file.readText())
         } catch (e: Exception) {
-            println("Failed to decode offline recipe $id: $e")
+            AppLog.w(TAG, "Failed to decode offline recipe $id: $e", e)
             null
         }
     }

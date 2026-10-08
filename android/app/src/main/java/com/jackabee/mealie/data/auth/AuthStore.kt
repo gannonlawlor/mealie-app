@@ -3,6 +3,7 @@ package com.jackabee.mealie.data.auth
 import com.jackabee.mealie.data.api.CredentialsProvider
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 enum class AppMode(val raw: String) {
@@ -42,6 +43,7 @@ class AuthStore(
     private val emailKey = "mealie_email"
     private val passwordKey = "mealie_password"
     private val savedServersKey = "mealie_saved_servers"
+    private val pendingImportsKey = "mealie_pending_import_urls"
 
     // MARK: App Mode
 
@@ -104,6 +106,37 @@ class AuthStore(
     fun removeSavedServer(url: String) {
         savedServers = savedServers.filterNot { it.url == url }
     }
+
+    // MARK: Pending share imports (shared URLs received while signed out)
+
+    /**
+     * URLs queued from share intents that arrived with no usable session.
+     * Order-preserving and de-duplicated; drained once auth state is established.
+     */
+    fun pendingImportURLs(): List<String> {
+        val raw = kv.getString(pendingImportsKey) ?: return emptyList()
+        return try {
+            json.decodeFromString(ListSerializer(String.serializer()), raw)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun queuePendingImportURL(url: String) {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return
+        val queued = pendingImportURLs().toMutableList()
+        if (queued.contains(trimmed)) return
+        queued.add(trimmed)
+        kv.putString(pendingImportsKey, json.encodeToString(ListSerializer(String.serializer()), queued))
+    }
+
+    fun removePendingImportURL(url: String) {
+        val queued = pendingImportURLs().filterNot { it == url }
+        if (queued.isEmpty()) kv.remove(pendingImportsKey)
+        else kv.putString(pendingImportsKey, json.encodeToString(ListSerializer(String.serializer()), queued))
+    }
+
 
     // MARK: Session
 

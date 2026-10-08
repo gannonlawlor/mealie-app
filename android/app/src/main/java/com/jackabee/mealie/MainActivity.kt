@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import com.jackabee.mealie.data.auth.AppMode
 import com.jackabee.mealie.di.AppContainer
 import com.jackabee.mealie.ui.navigation.AppRoot
 import com.jackabee.mealie.ui.screens.common.ThemeController
@@ -71,8 +72,11 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Handles ACTION_SEND (shared text containing a recipe URL) and ACTION_VIEW
-     * (opened http/https link) by kicking off a recipe import — the Android
-     * counterpart of the iOS `onOpenURL` / share-extension flow.
+     * (opened http/https link) — the Android counterpart of the iOS `onOpenURL`
+     * / share-extension flow. Imports immediately when a session is usable
+     * (local mode or restored server session); otherwise queues the URL on
+     * AuthStore for the AppRoot drain after authentication, with no failure
+     * banner — the recipes screen stays silent until the drain runs.
      */
     private fun handleImportIntent(intent: Intent?) {
         intent ?: return
@@ -88,8 +92,21 @@ class MainActivity : ComponentActivity() {
         }
         if (url.isNullOrEmpty()) return
 
-        recipeViewModel.updateImportURL(url)
-        lifecycleScope.launch { recipeViewModel.importFromURL() }
+        val authStore = container.authStore
+        if (authStore.savedAppMode == AppMode.LOCAL) {
+            recipeViewModel.setLocalMode(true)
+            recipeViewModel.updateImportURL(url)
+            lifecycleScope.launch { recipeViewModel.importFromURL() }
+            importEvents.value += 1
+            return
+        }
+        if (authStore.restoreSession()) {
+            recipeViewModel.updateImportURL(url)
+            lifecycleScope.launch { recipeViewModel.importFromURL() }
+            importEvents.value += 1
+            return
+        }
+        authStore.queuePendingImportURL(url)
         importEvents.value += 1
     }
 

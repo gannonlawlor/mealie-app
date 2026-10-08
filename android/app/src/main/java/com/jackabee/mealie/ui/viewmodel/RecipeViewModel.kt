@@ -32,6 +32,8 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+private const val TAG = "RecipeViewModel"
+
 /** UI state for the recipes feature. Port of the Swift RecipeViewModel's observable properties. */
 data class RecipeUiState(
     val recipes: List<RecipeSummary> = emptyList(),
@@ -165,7 +167,7 @@ class RecipeViewModel(
                 )
             }
         } catch (e: Exception) {
-            println("Failed to load recipes: $e")
+            AppLog.w(TAG, "Failed to load recipes: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to load recipes.", errorDetail = errorDetail(e), isLoading = false)
             }
@@ -200,7 +202,7 @@ class RecipeViewModel(
             withContext(ioDispatcher) { syncService.updateRecipe(recipe) }
             _uiState.update { it.copy(selectedRecipe = recipe, isLoadingDetail = false) }
         } catch (e: Exception) {
-            println("Failed to load recipe detail: $e")
+            AppLog.w(TAG, "Failed to load recipe detail: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to load recipe.", errorDetail = errorDetail(e), isLoadingDetail = false)
             }
@@ -226,7 +228,7 @@ class RecipeViewModel(
             withContext(ioDispatcher) { cache.saveCategories(response.items) }
             _uiState.update { it.copy(categories = response.items) }
         } catch (e: Exception) {
-            println("Failed to load categories: $e")
+            AppLog.w(TAG, "Failed to load categories: $e", e)
         }
     }
 
@@ -249,7 +251,7 @@ class RecipeViewModel(
             withContext(ioDispatcher) { cache.saveTags(response.items) }
             _uiState.update { it.copy(tags = response.items) }
         } catch (e: Exception) {
-            println("Failed to load tags: $e")
+            AppLog.w(TAG, "Failed to load tags: $e", e)
         }
     }
 
@@ -273,7 +275,7 @@ class RecipeViewModel(
             }
             true
         } catch (e: Exception) {
-            println("Failed to delete recipe: $e")
+            AppLog.w(TAG, "Failed to delete recipe: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to delete recipe.", errorDetail = errorDetail(e))
             }
@@ -329,7 +331,7 @@ class RecipeViewModel(
                 loadRecipes(reset = true)
                 true
             } catch (e: RecipeParseException) {
-                println("Local import error: $e")
+                AppLog.w(TAG, "Local import error: $e", e)
                 val message = when (e) {
                     is RecipeParseException.InvalidUrl -> "Invalid URL."
                     is RecipeParseException.FetchFailed -> "Could not fetch page: ${e.detail}"
@@ -339,7 +341,7 @@ class RecipeViewModel(
                 _uiState.update { it.copy(importMessage = message, isImporting = false) }
                 false
             } catch (e: Exception) {
-                println("Local import error: $e")
+                AppLog.w(TAG, "Local import error: $e", e)
                 _uiState.update { it.copy(importMessage = "Failed to import recipe.", isImporting = false) }
                 false
             }
@@ -360,7 +362,7 @@ class RecipeViewModel(
             }
             true
         } catch (e: Exception) {
-            println("Failed to import recipe: $e")
+            AppLog.w(TAG, "Failed to import recipe: $e", e)
             _uiState.update { it.copy(importMessage = "Failed to import recipe. Check the URL.", isImporting = false) }
             false
         }
@@ -393,7 +395,7 @@ class RecipeViewModel(
         if (recipe != null) {
             withContext(ioDispatcher) { syncService.updateRecipe(recipe) }
         } else {
-            println("Imported recipe $slug was not readable back from the server yet")
+            AppLog.w(TAG, "Imported recipe $slug was not readable back from the server yet")
         }
         loadRecipes(reset = true)
         return recipe != null
@@ -500,7 +502,7 @@ class RecipeViewModel(
                 if (wasFavorite) api.removeFavorite(userId, slug) else api.addFavorite(userId, slug)
             }
         } catch (e: Exception) {
-            println("Failed to toggle favorite: $e")
+            AppLog.w(TAG, "Failed to toggle favorite: $e", e)
             // Revert on failure
             _uiState.update {
                 it.copy(
@@ -529,7 +531,7 @@ class RecipeViewModel(
             loadRecipes(reset = true)
             true
         } catch (e: Exception) {
-            println("Failed to update recipe: $e")
+            AppLog.w(TAG, "Failed to update recipe: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to update recipe.", errorDetail = errorDetail(e))
             }
@@ -556,7 +558,7 @@ class RecipeViewModel(
                 )
             }
         } catch (e: Exception) {
-            println("Failed to save recipe offline: $e")
+            AppLog.w(TAG, "Failed to save recipe offline: $e", e)
             _uiState.update { it.copy(isSavingOffline = false) }
         }
     }
@@ -590,7 +592,7 @@ class RecipeViewModel(
             // image caching is handled by Coil, keyed by URL.
             true
         } catch (e: Exception) {
-            println("Failed to upload recipe image: $e")
+            AppLog.w(TAG, "Failed to upload recipe image: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to upload image.", errorDetail = errorDetail(e))
             }

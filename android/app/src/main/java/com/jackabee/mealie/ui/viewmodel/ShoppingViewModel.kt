@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
+private const val TAG = "ShoppingViewModel"
+
 /** UI state for the shopping tab. Port of the Swift ShoppingViewModel's observable properties. */
 data class ShoppingUiState(
     val shoppingLists: List<ShoppingList> = emptyList(),
@@ -85,7 +87,7 @@ class ShoppingViewModel(
                 withContext(ioDispatcher) { api.createShoppingListItem(createItem) }
                 successCount += 1
             } catch (e: Exception) {
-                println("Failed to sync pending item '${item.note}': $e")
+                AppLog.w(TAG, "Failed to sync pending item '${item.note}': $e", e)
             }
         }
 
@@ -119,7 +121,7 @@ class ShoppingViewModel(
             withContext(ioDispatcher) { cache.saveShoppingLists(response.items) }
             _uiState.update { it.copy(shoppingLists = response.items, isLoading = false) }
         } catch (e: Exception) {
-            println("Failed to load shopping lists: $e")
+            AppLog.w(TAG, "Failed to load shopping lists: $e", e)
             _uiState.update {
                 if (it.shoppingLists.isEmpty()) {
                     it.copy(errorMessage = "Failed to load shopping lists.", errorDetail = errorDetail(e), isLoading = false)
@@ -141,7 +143,7 @@ class ShoppingViewModel(
             withContext(ioDispatcher) { cache.saveShoppingListDetail(list, id) }
             _uiState.update { it.copy(selectedList = list, isLoading = false) }
         } catch (e: Exception) {
-            println("Failed to load shopping list: $e")
+            AppLog.w(TAG, "Failed to load shopping list: $e", e)
             _uiState.update {
                 if (it.selectedList == null) {
                     it.copy(errorMessage = "Failed to load shopping list.", errorDetail = errorDetail(e), isLoading = false)
@@ -157,7 +159,7 @@ class ShoppingViewModel(
             val newList = withContext(ioDispatcher) { api.createShoppingList(name) }
             _uiState.update { it.copy(shoppingLists = it.shoppingLists + newList) }
         } catch (e: Exception) {
-            println("Failed to create shopping list: $e")
+            AppLog.w(TAG, "Failed to create shopping list: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to create shopping list.", errorDetail = errorDetail(e))
             }
@@ -171,7 +173,7 @@ class ShoppingViewModel(
                 state.copy(shoppingLists = state.shoppingLists.filterNot { it.id == id })
             }
         } catch (e: Exception) {
-            println("Failed to delete shopping list: $e")
+            AppLog.w(TAG, "Failed to delete shopping list: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to delete shopping list.", errorDetail = errorDetail(e))
             }
@@ -191,7 +193,7 @@ class ShoppingViewModel(
             _uiState.update { it.copy(newItemNote = "") }
             loadShoppingList(listId)
         } catch (e: Exception) {
-            println("Failed to add item: $e")
+            AppLog.w(TAG, "Failed to add item: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to add item.", errorDetail = errorDetail(e))
             }
@@ -204,7 +206,7 @@ class ShoppingViewModel(
             withContext(ioDispatcher) { api.deleteShoppingListItem(itemId) }
             item.shoppingListId?.let { loadShoppingList(it) }
         } catch (e: Exception) {
-            println("Failed to delete item: $e")
+            AppLog.w(TAG, "Failed to delete item: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to delete item.", errorDetail = errorDetail(e))
             }
@@ -218,7 +220,7 @@ class ShoppingViewModel(
             withContext(ioDispatcher) { api.updateShoppingListItem(updated) }
             item.shoppingListId?.let { loadShoppingList(it) }
         } catch (e: Exception) {
-            println("Failed to toggle item: $e")
+            AppLog.w(TAG, "Failed to toggle item: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to update item.", errorDetail = errorDetail(e))
             }
@@ -236,7 +238,7 @@ class ShoppingViewModel(
             _uiState.update { it.copy(addedItemCount = it.addedItemCount + 1) }
             true
         } catch (e: Exception) {
-            println("Failed to add ingredient to shopping list: $e")
+            AppLog.w(TAG, "Failed to add ingredient to shopping list: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to add ingredient.", errorDetail = errorDetail(e))
             }
@@ -249,7 +251,7 @@ class ShoppingViewModel(
             withContext(ioDispatcher) { api.addRecipeToShoppingList(listId, recipeId) }
             loadShoppingList(listId)
         } catch (e: Exception) {
-            println("Failed to add recipe ingredients: $e")
+            AppLog.w(TAG, "Failed to add recipe ingredients: $e", e)
             _uiState.update {
                 it.copy(errorMessage = "Failed to add recipe ingredients.", errorDetail = errorDetail(e))
             }
