@@ -22,27 +22,9 @@ Native mobile clients for [Mealie](https://mealie.io) — the self-hosted recipe
 
 ## Screenshots
 
-### iOS
-
 | Recipes | Recipe Detail | Meal Plan |
 |---|---|---|
 | <img src="docs/screenshots/ios-recipes.png" width="230" alt="iOS recipe list"> | <img src="docs/screenshots/ios-recipe-detail.png" width="230" alt="iOS recipe detail"> | <img src="docs/screenshots/ios-meal-plan.png" width="230" alt="iOS meal plan"> |
-
-**iPad** — sidebar + split view:
-
-<img src="docs/screenshots/ios-ipad-split.png" width="700" alt="iPad split view">
-
-### Android
-
-| Recipes | Recipe Detail (dark) | Shopping List |
-|---|---|---|
-| <img src="docs/screenshots/android-recipes.png" width="230" alt="Android recipe list"> | <img src="docs/screenshots/android-recipe-detail-dark.png" width="230" alt="Android recipe detail dark mode"> | <img src="docs/screenshots/android-shopping.png" width="230" alt="Android shopping list"> |
-
-**Tablet / foldable** — two-pane layout:
-
-<img src="docs/screenshots/android-tablet-wide.png" width="700" alt="Android tablet two-pane layout">
-
-*iPhone screenshots are from the app running against a live Mealie server; the iPad and Android screenshots are the committed golden images from the snapshot test suites (fixture data).*
 
 ## Browser Extension
 
