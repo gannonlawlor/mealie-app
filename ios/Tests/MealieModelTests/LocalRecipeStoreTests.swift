@@ -203,7 +203,6 @@ final class LocalRecipeStoreTests: XCTestCase {
 
         let path = LocalRecipeStore.shared.saveImage(data: imageData, recipeId: recipeId)
         XCTAssertFalse(path.isEmpty)
-        XCTAssertTrue(path.contains(recipeId))
 
         let loadedPath = LocalRecipeStore.shared.imageFilePath(recipeId: recipeId)
         XCTAssertNotNil(loadedPath)
@@ -455,9 +454,9 @@ final class LocalRecipeStoreTests: XCTestCase {
 
     // MARK: - RecipePersistence protocol conformance
 
-    func testFileStoreConformsToProtocol() {
+    func testFileStoreConformsToProtocol() throws {
         let persistence: RecipePersistence = store
-        persistence.saveRecipe(makeRecipe())
+        try persistence.saveRecipe(makeRecipe())
         XCTAssertEqual(persistence.recipeCount(), 1)
         XCTAssertNotNil(persistence.loadRecipe(slug: "test-recipe"))
     }

@@ -10,6 +10,7 @@ final class RecipeEntity {
     var name: String? = nil
     var recipeData: Data? = nil
     var dateUpdated: String? = nil
+    @Attribute(.externalStorage) var imageData: Data? = nil
 
     init(recipeId: String, slug: String?, name: String?, recipeData: Data?, dateUpdated: String?) {
         self.recipeId = recipeId
@@ -37,10 +38,12 @@ public class SwiftDataRecipeStore: RecipePersistence, @unchecked Sendable {
     private let modelContainer: ModelContainer
     private let modelContext: ModelContext
 
-    public init(useCloudKit: Bool = false) {
+    public init(useCloudKit: Bool = false, configuration: ModelConfiguration? = nil) throws {
         let schema = Schema([RecipeEntity.self, FavoriteEntity.self])
         let config: ModelConfiguration
-        if useCloudKit {
+        if let configuration {
+            config = configuration
+        } else if useCloudKit {
             config = ModelConfiguration(
                 schema: schema,
                 cloudKitDatabase: .private("iCloud.com.jackabee.mealie")
@@ -48,11 +51,31 @@ public class SwiftDataRecipeStore: RecipePersistence, @unchecked Sendable {
         } else {
             config = ModelConfiguration(schema: schema)
         }
-        do {
-            modelContainer = try ModelContainer(for: schema, configurations: [config])
-            modelContext = ModelContext(modelContainer)
-        } catch {
-            fatalError("Failed to create SwiftData ModelContainer: \(error)")
+        modelContainer = try ModelContainer(for: schema, configurations: [config])
+        modelContext = ModelContext(modelContainer)
+        modelContext.autosaveEnabled = false
+        try backfillImageData()
+    }
+
+    /// Additive migration: retain original files while attaching their bytes to
+    /// records so CloudKit can transport photos alongside the recipe data.
+    private func backfillImageData() throws {
+        let entities = try modelContext.fetch(FetchDescriptor<RecipeEntity>())
+        for entity in entities where entity.imageData == nil {
+            guard let data = entity.recipeData,
+                  let recipe = try? JSONDecoder().decode(Recipe.self, from: data),
+                  let bytes = RecipeImageFiles.readLocalImage(recipe.image) else { continue }
+            entity.imageData = bytes
+            entity.recipeData = try JSONEncoder().encode(recipe.replacingImage(nil))
+        }
+        if modelContext.hasChanges { try saveChanges() }
+    }
+
+    private func saveChanges() throws {
+        do { try modelContext.save() }
+        catch {
+            modelContext.rollback()
+            throw error
         }
     }
 
@@ -74,53 +97,41 @@ public class SwiftDataRecipeStore: RecipePersistence, @unchecked Sendable {
         return decodeRecipe(from: entity)
     }
 
-    public func saveRecipe(_ recipe: Recipe) {
-        guard let id = recipe.id else { return }
-        let data = try? JSONEncoder().encode(recipe)
-
-        // Upsert: find existing or create new
+    public func saveRecipe(_ recipe: Recipe) throws {
+        guard let id = recipe.id else { throw RecipeStorageError.missingRecipeID }
         let descriptor = FetchDescriptor<RecipeEntity>(
-            predicate: #Predicate<RecipeEntity> { entity in
-                entity.recipeId == id
-            }
+            predicate: #Predicate<RecipeEntity> { $0.recipeId == id }
         )
-
-        if let existing = try? modelContext.fetch(descriptor).first {
-            existing.slug = recipe.slug
-            existing.name = recipe.name
-            existing.recipeData = data
-            existing.dateUpdated = recipe.dateUpdated
-        } else {
-            let entity = RecipeEntity(
-                recipeId: id,
-                slug: recipe.slug,
-                name: recipe.name,
-                recipeData: data,
-                dateUpdated: recipe.dateUpdated
-            )
-            modelContext.insert(entity)
+        let existing = try modelContext.fetch(descriptor).first
+        let imageData = RecipeImageFiles.readLocalImage(recipe.image)
+        // Absolute sandbox paths are never portable between devices.
+        let portable = RecipeImageFiles.isLocalPath(recipe.image)
+            ? recipe.replacingImage(nil) : recipe
+        let data = try JSONEncoder().encode(portable)
+        let entity = existing ?? RecipeEntity(recipeId: id, slug: recipe.slug,
+            name: recipe.name, recipeData: data, dateUpdated: recipe.dateUpdated)
+        entity.slug = recipe.slug
+        entity.name = recipe.name
+        entity.recipeData = data
+        entity.dateUpdated = recipe.dateUpdated
+        if let imageData {
+            entity.imageData = imageData
+        } else if !RecipeImageFiles.isLocalPath(recipe.image) {
+            // A remote replacement or explicit removal must not resurrect an
+            // older embedded photo when the record is decoded.
+            entity.imageData = nil
         }
-
-        do {
-            try modelContext.save()
-        } catch {
-            logger.error("Failed to save recipe \(id): \(error)")
-        }
+        if existing == nil { modelContext.insert(entity) }
+        try saveChanges()
     }
 
-    public func deleteRecipe(id: String) {
+    public func deleteRecipe(id: String) throws {
         let descriptor = FetchDescriptor<RecipeEntity>(
-            predicate: #Predicate<RecipeEntity> { entity in
-                entity.recipeId == id
-            }
+            predicate: #Predicate<RecipeEntity> { $0.recipeId == id }
         )
-        guard let entity = try? modelContext.fetch(descriptor).first else { return }
+        guard let entity = try modelContext.fetch(descriptor).first else { return }
         modelContext.delete(entity)
-        do {
-            try modelContext.save()
-        } catch {
-            logger.error("Failed to delete recipe \(id): \(error)")
-        }
+        try saveChanges()
     }
 
     public func recipeSummaries() -> [RecipeSummary] {
@@ -172,44 +183,29 @@ public class SwiftDataRecipeStore: RecipePersistence, @unchecked Sendable {
         return Set(entities.map { $0.slug })
     }
 
-    public func saveFavorites(_ favorites: Set<String>) {
-        // Delete all existing favorites
-        let descriptor = FetchDescriptor<FavoriteEntity>()
-        if let existing = try? modelContext.fetch(descriptor) {
-            for entity in existing {
-                modelContext.delete(entity)
-            }
-        }
-        // Insert new favorites
-        for slug in favorites {
-            modelContext.insert(FavoriteEntity(slug: slug))
-        }
-        try? modelContext.save()
+    public func saveFavorites(_ favorites: Set<String>) throws {
+        let existing = try modelContext.fetch(FetchDescriptor<FavoriteEntity>())
+        for entity in existing { modelContext.delete(entity) }
+        for slug in favorites { modelContext.insert(FavoriteEntity(slug: slug)) }
+        try saveChanges()
     }
 
-    public func addFavorite(slug: String) {
-        // Check if already exists
+    public func addFavorite(slug: String) throws {
         let descriptor = FetchDescriptor<FavoriteEntity>(
-            predicate: #Predicate<FavoriteEntity> { entity in
-                entity.slug == slug
-            }
+            predicate: #Predicate<FavoriteEntity> { $0.slug == slug }
         )
-        if let existing = try? modelContext.fetch(descriptor), !existing.isEmpty {
-            return // Already a favorite
-        }
+        if try !modelContext.fetch(descriptor).isEmpty { return }
         modelContext.insert(FavoriteEntity(slug: slug))
-        try? modelContext.save()
+        try saveChanges()
     }
 
-    public func removeFavorite(slug: String) {
+    public func removeFavorite(slug: String) throws {
         let descriptor = FetchDescriptor<FavoriteEntity>(
-            predicate: #Predicate<FavoriteEntity> { entity in
-                entity.slug == slug
-            }
+            predicate: #Predicate<FavoriteEntity> { $0.slug == slug }
         )
-        guard let entity = try? modelContext.fetch(descriptor).first else { return }
+        guard let entity = try modelContext.fetch(descriptor).first else { return }
         modelContext.delete(entity)
-        try? modelContext.save()
+        try saveChanges()
     }
 
     // MARK: - Private
@@ -217,7 +213,12 @@ public class SwiftDataRecipeStore: RecipePersistence, @unchecked Sendable {
     private func decodeRecipe(from entity: RecipeEntity) -> Recipe? {
         guard let data = entity.recipeData else { return nil }
         do {
-            return try JSONDecoder().decode(Recipe.self, from: data)
+            let recipe = try JSONDecoder().decode(Recipe.self, from: data)
+            if let bytes = entity.imageData,
+               let path = try? RecipeImageFiles.write(bytes, recipeId: entity.recipeId) {
+                return recipe.replacingImage(path)
+            }
+            return recipe
         } catch {
             logger.error("Failed to decode recipe \(entity.recipeId): \(error)")
             return nil

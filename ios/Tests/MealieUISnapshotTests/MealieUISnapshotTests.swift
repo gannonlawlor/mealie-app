@@ -180,7 +180,7 @@ final class MealieUISnapshotTests: XCTestCase {
         authVM.showServerSetup = false
 
         let view = NavigationStack {
-            SettingsView(authVM: authVM, shoppingVM: ShoppingViewModel())
+            SettingsView(authVM: authVM, shoppingVM: ShoppingViewModel(), appVersion: "1.1.19")
         }
         assertDeviceSnapshot(of: view, config: phone)
     }

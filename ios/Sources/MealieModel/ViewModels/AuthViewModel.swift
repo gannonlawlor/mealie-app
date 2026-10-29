@@ -81,7 +81,7 @@ private let logger = Log(category: "Auth")
             let user = try await MealieAPI.shared.getCurrentUser()
             currentUser = user
 
-            AuthService.shared.saveSession(
+            try AuthService.shared.saveSession(
                 serverURL: serverURL,
                 token: token.accessToken,
                 userId: user.id,
@@ -91,6 +91,9 @@ private let logger = Log(category: "Auth")
 
             isAuthenticated = true
             isServerConnected = true
+            isLoading = false
+        } catch is KeychainCredentialVault.VaultError {
+            errorMessage = "Could not securely save your sign-in. Unlock your device and try again."
             isLoading = false
         } catch let error as APIError {
             switch error {

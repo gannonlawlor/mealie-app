@@ -81,7 +81,7 @@ fun LoginScreen(authViewModel: AuthViewModel, hideLocalMode: Boolean = false) {
                 tint = MaterialTheme.colorScheme.primary,
             )
             Text(
-                text = "Mealie",
+                text = "Cookbook",
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -177,6 +177,14 @@ private fun ServerSetupForm(
             colors = fieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
+
+        if (serverURL.trim().startsWith("http://", ignoreCase = true)) {
+            Text(
+                text = "HTTP sends your sign-in details and recipes without encryption. Use HTTPS unless you trust this network.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         Button(
             onClick = onConnect,

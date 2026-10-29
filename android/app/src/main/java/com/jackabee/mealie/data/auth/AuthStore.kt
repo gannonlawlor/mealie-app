@@ -37,6 +37,7 @@ class AuthStore(
 ) : CredentialsProvider {
 
     private val serverURLKey = "mealie_server_url"
+    private val sessionValidKey = "mealie_session_valid"
     private val tokenKey = "mealie_access_token"
     private val userIdKey = "mealie_user_id"
     private val appModeKey = "mealie_app_mode"
@@ -62,7 +63,7 @@ class AuthStore(
         set(value) = kv.putString(serverURLKey, value)
 
     var savedToken: String?
-        get() = kv.getString(tokenKey)
+        get() = if (kv.getBoolean(sessionValidKey, true)) kv.getString(tokenKey) else null
         set(value) = kv.putString(tokenKey, value)
 
     var savedUserId: String?
@@ -74,7 +75,7 @@ class AuthStore(
         set(value) = kv.putString(emailKey, value)
 
     override var savedPassword: String?
-        get() = kv.getString(passwordKey)
+        get() = if (kv.getBoolean(sessionValidKey, true)) kv.getString(passwordKey) else null
         set(value) = kv.putString(passwordKey, value)
 
     override fun onTokenRefreshed(token: String) {
@@ -156,6 +157,10 @@ class AuthStore(
         email: String? = null,
         password: String? = null,
     ) {
+        // Fail closed before any server/credential field changes. Commit the marker
+        // before ciphertext writes so a process interruption cannot mix sessions.
+        kv.putBooleanDurably(sessionValidKey, false)
+        api.configure("", "")
         savedServerURL = serverURL
         savedToken = token
         savedUserId = userId
@@ -163,11 +168,13 @@ class AuthStore(
         if (email != null) savedEmail = email
         if (password != null) savedPassword = password
         if (email != null) addSavedServer(url = serverURL, email = email)
+        kv.putBooleanDurably(sessionValidKey, true)
         api.configure(serverURL, token)
     }
 
     /** Clears auth token but preserves server URL and email for quick re-login. */
     fun softClearSession() {
+        kv.putBooleanDurably(sessionValidKey, false)
         savedToken = null
         savedUserId = null
         savedPassword = null
@@ -175,6 +182,7 @@ class AuthStore(
     }
 
     fun clearSession() {
+        kv.putBooleanDurably(sessionValidKey, false)
         savedServerURL = null
         savedToken = null
         savedUserId = null

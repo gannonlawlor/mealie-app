@@ -6,6 +6,8 @@ import android.os.Looper
 import androidx.room.Room
 import com.jackabee.mealie.data.api.MealieApi
 import com.jackabee.mealie.data.api.MealieClient
+import com.jackabee.mealie.data.auth.AndroidKeystoreSecretStore
+import com.jackabee.mealie.data.auth.SecureKeyValueStore
 import com.jackabee.mealie.data.auth.AuthStore
 import com.jackabee.mealie.data.auth.SharedPrefsKeyValueStore
 import com.jackabee.mealie.data.model.MealieJson
@@ -36,7 +38,7 @@ class AppContainer(context: Context) {
     val client = MealieClient()
     val api = MealieApi(client, json)
 
-    val keyValueStore = SharedPrefsKeyValueStore(appContext)
+    val keyValueStore = SecureKeyValueStore(SharedPrefsKeyValueStore(appContext), AndroidKeystoreSecretStore(appContext))
     val authStore = AuthStore(keyValueStore, json, client)
     val settings = AppSettings(keyValueStore)
 

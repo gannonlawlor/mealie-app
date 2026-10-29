@@ -41,6 +41,19 @@ public class MealieAPI: @unchecked Sendable {
 
     // MARK: - Request Helpers
 
+    /// Form bodies use different escaping rules from URL queries. In particular,
+    /// literal plus and ampersand characters must not reach the form decoder.
+    func loginRequest(email: String, password: String) throws -> URLRequest {
+        guard let url = buildURL(path: "/api/auth/token") else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = FormURLEncoder.encode([("username", email), ("password", password)])
+        return request
+    }
+
     func buildURL(path: String, queryItems: [URLQueryItem]? = nil) -> URL? {
         var urlString = "\(baseURL)\(path)"
         if let queryItems = queryItems, !queryItems.isEmpty {
@@ -107,18 +120,13 @@ public class MealieAPI: @unchecked Sendable {
 
     private func attemptReAuthentication() async -> Bool {
         guard let email = AuthService.shared.savedEmail,
-              let password = AuthService.shared.savedPassword,
-              let url = buildURL(path: "/api/auth/token") else {
+              let password = AuthService.shared.savedPassword else {
             logInfo("No saved credentials for re-authentication")
             return false
         }
 
         do {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            let body = "username=\(email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email)&password=\(password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? password)"
-            request.httpBody = body.data(using: .utf8)
+            let request = try loginRequest(email: email, password: password)
 
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
@@ -227,18 +235,7 @@ public class MealieAPI: @unchecked Sendable {
     // MARK: - Auth
 
     public func login(email: String, password: String) async throws -> AuthToken {
-        guard let url = buildURL(path: "/api/auth/token") else {
-            throw APIError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-        let body = "username=\(email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email)&password=\(password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? password)"
-        request.httpBody = body.data(using: .utf8)
-
-        return try await perform(request)
+        return try await perform(loginRequest(email: email, password: password))
     }
 
     public func refreshToken() async throws -> AuthToken {

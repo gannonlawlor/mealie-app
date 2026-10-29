@@ -1,108 +1,132 @@
 import Foundation
+import Observation
 
 private let logger = Log(category: "LocalStore")
 
 /// Facade for recipe persistence. Delegates to SwiftData (iOS) or SQLite (Android)
 /// internally, while keeping the same public API for all callers.
-public class LocalRecipeStore: @unchecked Sendable {
+@Observable public class LocalRecipeStore: @unchecked Sendable {
     public static let shared = LocalRecipeStore()
 
-    private let store: RecipePersistence
-    private let imagesDirectory = "images"
-    private let localDirectoryName = "mealie_local"
+    @ObservationIgnored private var store: RecipePersistence?
+    @ObservationIgnored private var performMigration = true
+    public private(set) var initializationError: String?
 
-    private init() {
+    @ObservationIgnored private var makeStore: () throws -> RecipePersistence = {
         let useCloudKit = AppSettings.shared.iCloudSync
             && FileManager.default.ubiquityIdentityToken != nil
-        store = SwiftDataRecipeStore(useCloudKit: useCloudKit)
+        return try SwiftDataRecipeStore(useCloudKit: useCloudKit)
+    }
 
-        migrateFromFilesIfNeeded()
+    private init() { retryOpeningLibrary() }
+
+    init(performMigration: Bool = false, makeStore: @escaping () throws -> RecipePersistence) {
+        self.performMigration = performMigration
+        self.makeStore = makeStore
+        retryOpeningLibrary()
+    }
+
+    /// Retrying never removes or replaces an existing database.
+    public func retryOpeningLibrary() {
+        do {
+            if store == nil {
+                store = try makeStore()
+            }
+            if performMigration { try migrateFromFilesIfNeeded() }
+            initializationError = nil
+        } catch {
+            initializationError = error.localizedDescription
+            logger.error("Recipe library unavailable: \(error)")
+        }
+    }
+
+    init(store: RecipePersistence) { self.store = store }
+
+    private func writableStore() throws -> RecipePersistence {
+        guard let store, initializationError == nil else { throw RecipeStorageError.unavailable }
+        return store
     }
 
     // MARK: - Recipes (delegated)
 
     public func loadAllRecipes() -> [Recipe] {
-        store.loadAllRecipes()
+        store?.loadAllRecipes() ?? []
     }
 
     public func loadRecipe(slug: String) -> Recipe? {
-        store.loadRecipe(slug: slug)
+        store?.loadRecipe(slug: slug)
     }
 
-    public func saveRecipe(_ recipe: Recipe) {
-        store.saveRecipe(recipe)
+    public func saveRecipe(_ recipe: Recipe) throws {
+        try writableStore().saveRecipe(recipe)
     }
 
-    public func deleteRecipe(id: String) {
-        store.deleteRecipe(id: id)
+    public func deleteRecipe(id: String) throws {
+        try writableStore().deleteRecipe(id: id)
         deleteImage(recipeId: id)
     }
 
     public func recipeSummaries() -> [RecipeSummary] {
-        store.recipeSummaries()
+        store?.recipeSummaries() ?? []
     }
 
     public func recipeCount() -> Int {
-        store.recipeCount()
+        store?.recipeCount() ?? 0
     }
 
     // MARK: - Search (delegated)
 
     public func findRecipeByOrgURL(_ url: String) -> Recipe? {
-        store.findRecipeByOrgURL(url)
+        store?.findRecipeByOrgURL(url)
     }
 
     public func findRecipesByName(_ name: String) -> [Recipe] {
-        store.findRecipesByName(name)
+        store?.findRecipesByName(name) ?? []
     }
 
     // MARK: - Favorites (delegated)
 
     public func loadFavorites() -> Set<String> {
-        store.loadFavorites()
+        store?.loadFavorites() ?? []
     }
 
-    public func saveFavorites(_ favorites: Set<String>) {
-        store.saveFavorites(favorites)
+    public func saveFavorites(_ favorites: Set<String>) throws {
+        try writableStore().saveFavorites(favorites)
     }
 
-    public func addFavorite(slug: String) {
-        store.addFavorite(slug: slug)
+    public func addFavorite(slug: String) throws {
+        try writableStore().addFavorite(slug: slug)
     }
 
-    public func removeFavorite(slug: String) {
-        store.removeFavorite(slug: slug)
+    public func removeFavorite(slug: String) throws {
+        try writableStore().removeFavorite(slug: slug)
     }
 
     // MARK: - Images (file-based on both platforms)
 
     public func saveImage(data: Data, recipeId: String) -> String {
-        guard let dir = localDirectory() else { return "" }
-        let imgDir = dir.appendingPathComponent(imagesDirectory)
-        try? FileManager.default.createDirectory(at: imgDir, withIntermediateDirectories: true)
-        let filePath = imgDir.appendingPathComponent("\(recipeId).jpg")
-        do {
-            try data.write(to: filePath)
-            return filePath.path
-        } catch {
-            logger.error("Failed to save image for \(recipeId): \(error)")
+        do { return try RecipeImageFiles.write(data, recipeId: recipeId) }
+        catch {
+            logger.error("Failed to save recipe image: \(error)")
             return ""
         }
     }
 
     public func imageFilePath(recipeId: String) -> String? {
-        guard let dir = localDirectory() else { return nil }
-        let filePath = dir.appendingPathComponent(imagesDirectory).appendingPathComponent("\(recipeId).jpg")
-        if FileManager.default.fileExists(atPath: filePath.path) {
-            return filePath.path
-        }
-        return nil
+        guard let url = try? RecipeImageFiles.url(recipeId: recipeId),
+              FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url.path
     }
 
     public func deleteImage(recipeId: String) {
-        guard let dir = localDirectory() else { return }
-        let filePath = dir.appendingPathComponent(imagesDirectory).appendingPathComponent("\(recipeId).jpg")
-        try? FileManager.default.removeItem(at: filePath)
+        guard let url = try? RecipeImageFiles.url(recipeId: recipeId) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    public func saveRecipeImage(_ data: Data, recipe: Recipe) throws {
+        guard let id = recipe.id else { throw RecipeStorageError.missingRecipeID }
+        let path = try RecipeImageFiles.write(data, recipeId: id)
+        try saveRecipe(recipe.replacingImage(path))
     }
 
     // MARK: - Helpers
@@ -114,20 +138,10 @@ public class LocalRecipeStore: @unchecked Sendable {
         return slug.isEmpty ? "recipe" : slug
     }
 
-    // MARK: - Private
-
-    private func localDirectory() -> URL? {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let dir = appSupport.appendingPathComponent(localDirectoryName)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
     // MARK: - Migration from file-based storage
 
-    private func migrateFromFilesIfNeeded() {
+    private func migrateFromFilesIfNeeded() throws {
+        guard let store else { throw RecipeStorageError.unavailable }
         let migrationKey = "mealie_db_migration_complete"
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
 
@@ -138,20 +152,20 @@ public class LocalRecipeStore: @unchecked Sendable {
         if !localRecipes.isEmpty {
             logger.info("Migrating \(localRecipes.count) recipes from files to database")
             for recipe in localRecipes {
-                store.saveRecipe(recipe)
+                try store.saveRecipe(recipe)
             }
         }
 
         // Also migrate from iCloud directory if it was previously used
         if AppSettings.shared.iCloudSync {
-            migrateFromICloudFiles()
+            try migrateFromICloudFiles()
         }
 
         // Migrate favorites
         let favorites = fileStore.loadFavorites()
         if !favorites.isEmpty {
             logger.info("Migrating \(favorites.count) favorites from files to database")
-            store.saveFavorites(favorites)
+            try store.saveFavorites(favorites)
         }
 
         // Also migrate favorites from legacy UserDefaults
@@ -162,7 +176,7 @@ public class LocalRecipeStore: @unchecked Sendable {
             for slug in legacyArray {
                 allFavorites.insert(slug)
             }
-            store.saveFavorites(allFavorites)
+            try store.saveFavorites(allFavorites)
             UserDefaults.standard.removeObject(forKey: legacyFavoritesKey)
         }
 
@@ -170,7 +184,8 @@ public class LocalRecipeStore: @unchecked Sendable {
         logger.info("Migration from file-based storage complete")
     }
 
-    private func migrateFromICloudFiles() {
+    private func migrateFromICloudFiles() throws {
+        guard let store else { throw RecipeStorageError.unavailable }
         let containerID = "iCloud.com.jackabee.mealie"
         guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerID) else { return }
         let recipesDir = containerURL.appendingPathComponent("Documents/Recipes")
@@ -186,11 +201,12 @@ public class LocalRecipeStore: @unchecked Sendable {
                 let recipe = try JSONDecoder().decode(Recipe.self, from: data)
                 // Only save if not already in database (avoid overwriting local changes)
                 if let slug = recipe.slug, store.loadRecipe(slug: slug) == nil {
-                    store.saveRecipe(recipe)
+                    try store.saveRecipe(recipe)
                     count += 1
                 }
             } catch {
-                logger.error("Failed to decode iCloud recipe \(file.lastPathComponent): \(error)")
+                logger.error("Failed to migrate iCloud recipe \(file.lastPathComponent): \(error)")
+                throw error
             }
         }
         if count > 0 {
@@ -205,7 +221,7 @@ public class LocalRecipeStore: @unchecked Sendable {
             for slug in slugs {
                 existing.insert(slug)
             }
-            store.saveFavorites(existing)
+            try store.saveFavorites(existing)
         }
     }
 }

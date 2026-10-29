@@ -7,22 +7,41 @@ plugins {
     alias(libs.plugins.roborazzi)
 }
 
+// Read upload credentials from the environment; never commit keystores or passwords.
+val uploadSigning = listOf("COOKBOOK_KEYSTORE_PATH", "COOKBOOK_KEYSTORE_PASSWORD",
+    "COOKBOOK_KEY_ALIAS", "COOKBOOK_KEY_PASSWORD").associateWith {
+    providers.environmentVariable(it).orNull
+}
+val hasUploadSigning = uploadSigning.values.all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.jackabee.mealie"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.jackabee.mealie"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 22
         versionName = "1.1.19"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasUploadSigning) {
+            create("upload") {
+                storeFile = file(uploadSigning.getValue("COOKBOOK_KEYSTORE_PATH")!!)
+                storePassword = uploadSigning.getValue("COOKBOOK_KEYSTORE_PASSWORD")
+                keyAlias = uploadSigning.getValue("COOKBOOK_KEY_ALIAS")
+                keyPassword = uploadSigning.getValue("COOKBOOK_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasUploadSigning) signingConfig = signingConfigs.getByName("upload")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -125,4 +144,25 @@ dependencies {
     testImplementation(libs.roborazzi.junit.rule)
     // Provides the ComponentActivity used by createComposeRule()
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Unit tests and debug builds need no upload key. Public release artifacts do.
+val missingUploadVariables = uploadSigning.filterValues { it.isNullOrBlank() }.keys.toList()
+abstract class ValidateCookbookUploadSigning : DefaultTask() {
+    @get:Input
+    abstract val missingVariables: ListProperty<String>
+
+    @TaskAction
+    fun validate() {
+        val missing = missingVariables.get()
+        check(missing.isEmpty()) {
+            "Release signing is not configured. Set: ${missing.joinToString()}. See docs/ANDROID_RELEASE.md."
+        }
+    }
+}
+val validateUploadSigning = tasks.register<ValidateCookbookUploadSigning>("validateUploadSigning") {
+    missingVariables.set(missingUploadVariables)
+}
+tasks.matching { it.name == "bundleRelease" || it.name == "assembleRelease" }.configureEach {
+    dependsOn(validateUploadSigning)
 }

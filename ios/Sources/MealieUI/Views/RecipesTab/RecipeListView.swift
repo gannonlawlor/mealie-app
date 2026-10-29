@@ -429,7 +429,7 @@ struct ImportRecipeView: View {
 
                         Button(action: {
                             Task {
-                                let recipe = await recipeVM.createLocalRecipe(name: newRecipeName)
+                                guard let recipe = await recipeVM.createLocalRecipe(name: newRecipeName) else { return }
                                 createdRecipe = recipe
                                 showEditSheet = true
                             }

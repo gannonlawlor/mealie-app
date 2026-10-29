@@ -44,6 +44,18 @@ public struct Recipe: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
+extension Recipe {
+    func replacingImage(_ image: String?) -> Recipe {
+        Recipe(id: id, slug: slug, name: name, description: description, image: image,
+               recipeCategory: recipeCategory, tags: tags, tools: tools, rating: rating,
+               recipeYield: recipeYield, recipeIngredient: recipeIngredient,
+               recipeInstructions: recipeInstructions, totalTime: totalTime,
+               prepTime: prepTime, performTime: performTime, nutrition: nutrition,
+               settings: settings, dateAdded: dateAdded, dateUpdated: dateUpdated,
+               createdAt: createdAt, updatedAt: updatedAt, orgURL: orgURL, extras: extras)
+    }
+}
+
 public struct RecipeSummary: Codable, Sendable, Identifiable, Hashable {
     public let id: String?
     public let slug: String?

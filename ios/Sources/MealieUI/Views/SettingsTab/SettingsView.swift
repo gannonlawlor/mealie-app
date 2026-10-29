@@ -5,6 +5,7 @@ import MealieModel
 struct SettingsView: View {
     @Bindable var authVM: AuthViewModel
     @Bindable var shoppingVM: ShoppingViewModel
+    var appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     var onThemeChange: ((AppTheme) -> Void)? = nil
     @State var showLogoutAlert = false
     @State var showLoginSheet = false
@@ -187,7 +188,7 @@ struct SettingsView: View {
                 HStack {
                     Text("App Version")
                     Spacer()
-                    Text("1.0.0")
+                    Text(appVersion)
                         .foregroundStyle(.secondary)
                 }
 
@@ -197,6 +198,11 @@ struct SettingsView: View {
                     Text("SwiftUI")
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section("Help & Privacy") {
+                Link("Privacy Policy", destination: URL(string: "https://github.com/gannonlawlor/mealie-app/blob/main/docs/PRIVACY.md")!)
+                Link("Help & Support", destination: URL(string: "https://github.com/gannonlawlor/mealie-app/blob/main/docs/SUPPORT.md")!)
             }
 
             // Actions

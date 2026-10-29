@@ -40,12 +40,26 @@ private let logger = Log(category: "Recipes")
     // Search debounce
     private var searchTask: Task<Void, Never>? = nil
 
-    public init() {}
+    private let localStore: LocalRecipeStore
+
+    public init() { localStore = .shared }
+    init(localStore: LocalRecipeStore) { self.localStore = localStore }
+
+    private func reportStorageFailure(_ error: Error) {
+        errorMessage = "Your recipe changes could not be saved. Please try again."
+        errorDetail = error.localizedDescription
+    }
 
     public func loadRecipes(reset: Bool = false) async {
         if isLocalMode {
             isLoading = true
-            let allRecipes = LocalRecipeStore.shared.loadAllRecipes()
+            if let storageError = localStore.initializationError {
+                errorMessage = "Your recipe library could not be opened. Your saved data has been preserved."
+                errorDetail = storageError
+                isLoading = false
+                return
+            }
+            let allRecipes = localStore.loadAllRecipes()
             var filtered = allRecipes
 
             // Filter by search (name, description, ingredients)
@@ -193,7 +207,7 @@ private let logger = Log(category: "Recipes")
 
     public func loadRecipeDetail(slug: String) async {
         if isLocalMode {
-            selectedRecipe = LocalRecipeStore.shared.loadRecipe(slug: slug)
+            selectedRecipe = localStore.loadRecipe(slug: slug)
             isLoadingDetail = false
             return
         }
@@ -224,7 +238,7 @@ private let logger = Log(category: "Recipes")
         if isLocalMode {
             var seen = Set<String>()
             var result: [RecipeCategory] = []
-            for recipe in LocalRecipeStore.shared.loadAllRecipes() {
+            for recipe in localStore.loadAllRecipes() {
                 for cat in recipe.recipeCategory ?? [] {
                     if let slug = cat.slug, !seen.contains(slug) {
                         seen.insert(slug)
@@ -252,7 +266,7 @@ private let logger = Log(category: "Recipes")
         if isLocalMode {
             var seen = Set<String>()
             var result: [RecipeTag] = []
-            for recipe in LocalRecipeStore.shared.loadAllRecipes() {
+            for recipe in localStore.loadAllRecipes() {
                 for tag in recipe.tags ?? [] {
                     if let slug = tag.slug, !seen.contains(slug) {
                         seen.insert(slug)
@@ -278,12 +292,14 @@ private let logger = Log(category: "Recipes")
 
     public func deleteRecipe(slug: String) async -> Bool {
         if isLocalMode {
-            if let recipe = LocalRecipeStore.shared.loadRecipe(slug: slug), let id = recipe.id {
-                LocalRecipeStore.shared.deleteRecipe(id: id)
-            }
-            selectedRecipe = nil
-            await loadRecipes(reset: true)
-            return true
+            do {
+                if let recipe = localStore.loadRecipe(slug: slug), let id = recipe.id {
+                    try localStore.deleteRecipe(id: id)
+                }
+                selectedRecipe = nil
+                await loadRecipes(reset: true)
+                return true
+            } catch { reportStorageFailure(error); return false }
         }
 
         do {
@@ -311,7 +327,7 @@ private let logger = Log(category: "Recipes")
                 let recipe = try await RecipeURLParser.shared.parseRecipe(from: importURL)
 
                 // Check for duplicates
-                if let existing = LocalRecipeStore.shared.findRecipeByOrgURL(importURL) {
+                if let existing = localStore.findRecipeByOrgURL(importURL) {
                     duplicateRecipe = existing
                     pendingImportRecipe = recipe
                     duplicateMatchedByURL = true
@@ -319,7 +335,7 @@ private let logger = Log(category: "Recipes")
                     isImporting = false
                     return true
                 }
-                if let name = recipe.name, let existing = LocalRecipeStore.shared.findRecipesByName(name).first {
+                if let name = recipe.name, let existing = localStore.findRecipesByName(name).first {
                     duplicateRecipe = existing
                     pendingImportRecipe = recipe
                     duplicateMatchedByURL = false
@@ -328,7 +344,7 @@ private let logger = Log(category: "Recipes")
                     return true
                 }
 
-                LocalRecipeStore.shared.saveRecipe(recipe)
+                try localStore.saveRecipe(recipe)
                 importMessage = "Recipe imported successfully!"
                 importURL = ""
                 isImporting = false
@@ -404,7 +420,8 @@ private let logger = Log(category: "Recipes")
 
     public func confirmImportNew() async {
         guard let recipe = pendingImportRecipe else { return }
-        LocalRecipeStore.shared.saveRecipe(recipe)
+        do { try localStore.saveRecipe(recipe) }
+        catch { reportStorageFailure(error); importMessage = errorMessage; return }
         importMessage = "Recipe imported successfully!"
         importURL = ""
         clearDuplicateState()
@@ -426,7 +443,8 @@ private let logger = Log(category: "Recipes")
             createdAt: existing.createdAt, updatedAt: now,
             orgURL: pending.orgURL, extras: pending.extras
         )
-        LocalRecipeStore.shared.saveRecipe(updated)
+        do { try localStore.saveRecipe(updated) }
+        catch { reportStorageFailure(error); importMessage = errorMessage; return }
         importMessage = "Recipe updated successfully!"
         importURL = ""
         clearDuplicateState()
@@ -471,7 +489,7 @@ private let logger = Log(category: "Recipes")
 
     public func loadFavorites(user: User?) {
         if isLocalMode {
-            favoriteRecipes = LocalRecipeStore.shared.loadFavorites()
+            favoriteRecipes = localStore.loadFavorites()
             return
         }
         guard let slugs = user?.favoriteRecipes else { return }
@@ -486,13 +504,15 @@ private let logger = Log(category: "Recipes")
         let wasFavorite = favoriteRecipes.contains(slug)
 
         if isLocalMode {
-            if wasFavorite {
-                favoriteRecipes.remove(slug)
-                LocalRecipeStore.shared.removeFavorite(slug: slug)
-            } else {
-                favoriteRecipes.insert(slug)
-                LocalRecipeStore.shared.addFavorite(slug: slug)
-            }
+            do {
+                if wasFavorite {
+                    try localStore.removeFavorite(slug: slug)
+                    favoriteRecipes.remove(slug)
+                } else {
+                    try localStore.addFavorite(slug: slug)
+                    favoriteRecipes.insert(slug)
+                }
+            } catch { reportStorageFailure(error) }
             return
         }
 
@@ -526,10 +546,12 @@ private let logger = Log(category: "Recipes")
 
     public func updateRecipe(slug: String, data: Recipe) async -> Bool {
         if isLocalMode {
-            LocalRecipeStore.shared.saveRecipe(data)
-            selectedRecipe = data
-            await loadRecipes(reset: true)
-            return true
+            do {
+                try localStore.saveRecipe(data)
+                selectedRecipe = localStore.loadRecipe(slug: slug) ?? data
+                await loadRecipes(reset: true)
+                return true
+            } catch { reportStorageFailure(error); return false }
         }
 
         do {
@@ -595,10 +617,13 @@ private let logger = Log(category: "Recipes")
 
     public func uploadImage(slug: String, imageData: Data) async -> Bool {
         if isLocalMode {
-            if let recipe = selectedRecipe, let id = recipe.id {
-                let _ = LocalRecipeStore.shared.saveImage(data: imageData, recipeId: id)
-            }
-            return true
+            guard let recipe = selectedRecipe else { return false }
+            do {
+                try localStore.saveRecipeImage(imageData, recipe: recipe)
+                selectedRecipe = localStore.loadRecipe(slug: slug)
+                await loadRecipes(reset: true)
+                return true
+            } catch { reportStorageFailure(error); return false }
         }
 
         do {
@@ -616,9 +641,9 @@ private let logger = Log(category: "Recipes")
         }
     }
 
-    public func createLocalRecipe(name: String) async -> Recipe {
+    public func createLocalRecipe(name: String) async -> Recipe? {
         let id = UUID().uuidString
-        let slug = LocalRecipeStore.shared.generateSlug(from: name)
+        let slug = localStore.generateSlug(from: name)
         let now = ISO8601DateFormatter().string(from: Date())
 
         let recipe = Recipe(
@@ -629,7 +654,8 @@ private let logger = Log(category: "Recipes")
             settings: nil, dateAdded: now, dateUpdated: now,
             createdAt: now, updatedAt: now, orgURL: nil, extras: nil
         )
-        LocalRecipeStore.shared.saveRecipe(recipe)
+        do { try localStore.saveRecipe(recipe) }
+        catch { reportStorageFailure(error); importMessage = errorMessage; return nil }
         await loadRecipes(reset: true)
         return recipe
     }

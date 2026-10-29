@@ -256,9 +256,15 @@ class ShareViewController: UIViewController {
             return
         }
 
+        let revision = defaults.string(forKey: "mealie_session_revision")
         let mode = defaults.string(forKey: appModeKey) ?? "server"
         let server = (defaults.string(forKey: serverURLKey) ?? "").trimmingCharacters(in: .whitespaces)
-        let token = defaults.string(forKey: tokenKey) ?? ""
+        let sessionValid = defaults.object(forKey: "mealie_session_valid") == nil || defaults.bool(forKey: "mealie_session_valid")
+        var token = sessionValid ? ((try? SecureCredentialStore(legacy: [defaults]).read(tokenKey)) ?? "") : ""
+        if revision != defaults.string(forKey: "mealie_session_revision") ||
+            (defaults.object(forKey: "mealie_session_valid") != nil && !defaults.bool(forKey: "mealie_session_valid")) {
+            token = ""
+        }
 
         guard mode == "server", !server.isEmpty, !token.isEmpty else {
             // Local mode keeps recipes in the app's own store, which the
@@ -352,9 +358,18 @@ class ShareViewController: UIViewController {
 
     /// Re-login with the saved credentials, storing the fresh token for the app too.
     private func reauthenticate(base: String) async -> String? {
-        guard let defaults = sharedDefaults,
+        guard let defaults = sharedDefaults else { return nil }
+        let revision = defaults.string(forKey: "mealie_session_revision")
+        let normalizedBase = base.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        func sessionIsCurrent() -> Bool {
+            let valid = defaults.object(forKey: "mealie_session_valid") == nil || defaults.bool(forKey: "mealie_session_valid")
+            return valid && revision == defaults.string(forKey: "mealie_session_revision") &&
+                defaults.string(forKey: serverURLKey)?.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == normalizedBase
+        }
+        guard sessionIsCurrent(),
+              defaults.string(forKey: serverURLKey)?.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == base.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
               let email = defaults.string(forKey: emailKey),
-              let password = defaults.string(forKey: passwordKey),
+              let password = try? SecureCredentialStore(legacy: [defaults]).read(passwordKey),
               let endpoint = URL(string: "\(base)/api/auth/token") else {
             os_log("ShareExtension: no saved credentials to re-authenticate with", log: log, type: .info)
             return nil
@@ -363,11 +378,10 @@ class ShareViewController: UIViewController {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let encodedEmail = email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email
-        let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? password
-        request.httpBody = "username=\(encodedEmail)&password=\(encodedPassword)".data(using: .utf8)
+        request.httpBody = FormURLEncoder.encode([("username", email), ("password", password)])
 
         do {
+            guard sessionIsCurrent() else { return nil }
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 os_log("ShareExtension: re-authentication rejected", log: log, type: .error)
@@ -379,7 +393,11 @@ class ShareViewController: UIViewController {
                 os_log("ShareExtension: re-authentication response had no access_token", log: log, type: .error)
                 return nil
             }
-            defaults.set(token, forKey: tokenKey)
+            // A server switch or logout during the network request must not
+            // replace the new session with a token from the previous server.
+            guard sessionIsCurrent() else { return nil }
+            try SecureCredentialStore(legacy: [defaults]).write(token, for: tokenKey)
+            guard sessionIsCurrent() else { return nil }
             os_log("ShareExtension: re-authenticated", log: log, type: .info)
             return token
         } catch {

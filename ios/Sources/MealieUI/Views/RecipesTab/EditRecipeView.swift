@@ -26,6 +26,11 @@ struct EditRecipeView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if !recipeVM.errorMessage.isEmpty {
+                    Section {
+                        Text(recipeVM.errorMessage).foregroundStyle(.red)
+                    }
+                }
                 Section("Image") {
                     if let url = selectedImageURL {
                         AsyncImage(url: url) { image in
@@ -271,12 +276,12 @@ struct EditRecipeView: View {
             extras: recipe.extras
         )
 
-        let success = await recipeVM.updateRecipe(slug: recipe.slug ?? "", data: updated)
+        var success = await recipeVM.updateRecipe(slug: recipe.slug ?? "", data: updated)
 
         // Upload image if user selected a new one
         if success, let imageData = selectedImageData {
             let uploadSlug = recipeVM.selectedRecipe?.slug ?? recipe.slug ?? ""
-            let _ = await recipeVM.uploadImage(slug: uploadSlug, imageData: imageData)
+            success = await recipeVM.uploadImage(slug: uploadSlug, imageData: imageData)
         }
 
         isSaving = false

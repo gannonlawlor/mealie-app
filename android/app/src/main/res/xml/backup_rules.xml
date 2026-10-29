@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Legacy credentials and ciphertext must not move without their device key. -->
+    <exclude domain="sharedpref" path="mealie_prefs.xml" />
+    <exclude domain="sharedpref" path="mealie_secrets.xml" />
+</full-backup-content>

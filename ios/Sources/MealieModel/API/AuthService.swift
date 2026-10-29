@@ -19,6 +19,7 @@ public class AuthService: @unchecked Sendable {
     public static let shared = AuthService()
 
     private let serverURLKey = "mealie_server_url"
+    private let sessionValidKey = "mealie_session_valid"
     private let tokenKey = "mealie_access_token"
     private let userIdKey = "mealie_user_id"
     private let appModeKey = "mealie_app_mode"
@@ -30,10 +31,24 @@ public class AuthService: @unchecked Sendable {
     /// can import a shared link itself instead of only queueing it. Falls back
     /// to standard defaults if the entitlement is missing.
     let store: UserDefaults
+    private let credentials: SecureCredentialStore
 
     private init() {
         store = SharedAppGroup.defaults ?? .standard
+        credentials = SecureCredentialStore(legacy: [store, .standard])
         migrateFromStandardDefaults()
+        // Attempt migration eagerly, retaining the old value on vault failure.
+        _ = savedToken
+        _ = savedPassword
+    }
+
+    init(store: UserDefaults, credentials: SecureCredentialStore) {
+        self.store = store
+        self.credentials = credentials
+    }
+
+    private var isSessionValid: Bool {
+        store.object(forKey: sessionValidKey) == nil || store.bool(forKey: sessionValidKey)
     }
 
     /// Copies a pre-App-Group session into the group container so updating the
@@ -43,7 +58,7 @@ public class AuthService: @unchecked Sendable {
     private func migrateFromStandardDefaults() {
         guard store != UserDefaults.standard else { return }
         let standard = UserDefaults.standard
-        for key in [serverURLKey, tokenKey, userIdKey, appModeKey, emailKey, passwordKey] {
+        for key in [serverURLKey, userIdKey, appModeKey, emailKey] {
             guard let value = standard.string(forKey: key) else { continue }
             if store.string(forKey: key) == nil {
                 store.set(value, forKey: key)
@@ -82,8 +97,8 @@ public class AuthService: @unchecked Sendable {
     // MARK: - Token Management
 
     public var savedToken: String? {
-        get { store.string(forKey: tokenKey) }
-        set { store.set(newValue, forKey: tokenKey) }
+        get { isSessionValid ? readCredential(tokenKey) : nil }
+        set { writeCredential(newValue, for: tokenKey) }
     }
 
     public var savedUserId: String? {
@@ -97,8 +112,18 @@ public class AuthService: @unchecked Sendable {
     }
 
     public var savedPassword: String? {
-        get { store.string(forKey: passwordKey) }
-        set { store.set(newValue, forKey: passwordKey) }
+        get { isSessionValid ? readCredential(passwordKey) : nil }
+        set { writeCredential(newValue, for: passwordKey) }
+    }
+
+    private func readCredential(_ key: String) -> String? {
+        do { return try credentials.read(key) }
+        catch { NSLog("Credential vault is unavailable; retaining existing credentials for retry."); return nil }
+    }
+
+    private func writeCredential(_ value: String?, for key: String) {
+        do { try credentials.write(value, for: key) }
+        catch { NSLog("Credential vault update failed; no plaintext fallback was written.") }
     }
 
     // MARK: - Saved Servers
@@ -146,21 +171,27 @@ public class AuthService: @unchecked Sendable {
         return true
     }
 
-    public func saveSession(serverURL: String, token: String, userId: String, email: String? = nil, password: String? = nil) {
+    public func saveSession(serverURL: String, token: String, userId: String, email: String? = nil, password: String? = nil) throws {
+        store.set(false, forKey: sessionValidKey)
+        store.set(UUID().uuidString, forKey: "mealie_session_revision")
+        guard store.synchronize() else { throw KeychainCredentialVault.VaultError.invalidData }
+        MealieAPI.shared.configure(baseURL: "", token: "")
+        try credentials.write(token, for: tokenKey)
+        if let password { try credentials.write(password, for: passwordKey) }
         savedServerURL = serverURL
-        savedToken = token
         savedUserId = userId
         savedAppMode = .server
         if let email = email { savedEmail = email }
-        if let password = password { savedPassword = password }
         if let email = email {
             addSavedServer(url: serverURL, email: email)
         }
+        store.set(true, forKey: sessionValidKey)
         MealieAPI.shared.configure(baseURL: serverURL, token: token)
     }
 
     /// Clears auth token but preserves server URL and email for quick re-login.
     public func softClearSession() {
+        store.set(false, forKey: sessionValidKey)
         savedToken = nil
         savedUserId = nil
         savedPassword = nil
@@ -168,6 +199,7 @@ public class AuthService: @unchecked Sendable {
     }
 
     public func clearSession() {
+        store.set(false, forKey: sessionValidKey)
         savedServerURL = nil
         savedToken = nil
         savedUserId = nil

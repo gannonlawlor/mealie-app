@@ -56,7 +56,7 @@ struct SidebarView: View {
                         .font(.system(size: 28))
                         .foregroundStyle(Color.accentColor)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Mealie")
+                        Text("Cookbook")
                             .font(.subheadline)
                             .bold()
                             .lineLimit(1)

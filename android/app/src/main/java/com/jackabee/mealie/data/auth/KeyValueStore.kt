@@ -13,6 +13,7 @@ interface KeyValueStore {
     fun putString(key: String, value: String?)
     fun getBoolean(key: String, default: Boolean = false): Boolean
     fun putBoolean(key: String, value: Boolean)
+    fun putBooleanDurably(key: String, value: Boolean) { putBoolean(key, value) }
     fun getLong(key: String): Long?
     fun putLong(key: String, value: Long?)
     fun contains(key: String): Boolean
@@ -34,6 +35,10 @@ class SharedPrefsKeyValueStore(context: Context, name: String = "mealie_prefs") 
 
     override fun putBoolean(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
+    }
+
+    override fun putBooleanDurably(key: String, value: Boolean) {
+        check(prefs.edit().putBoolean(key, value).commit()) { "Unable to save session state" }
     }
 
     override fun getLong(key: String): Long? =

@@ -3,6 +3,8 @@ import SwiftUI
 import MealieModel
 
 public struct ContentView: View {
+    @State var showRecoveryServerSetup = false
+    @State var localRecipeStore = LocalRecipeStore.shared
     @State var authVM = AuthViewModel()
     @State var recipeVM = RecipeViewModel()
     @State var mealPlanVM = MealPlanViewModel()
@@ -25,11 +27,30 @@ public struct ContentView: View {
 
     public var body: some View {
         Group {
-            if horizontalSizeClass == .regular {
+            if !authVM.isServerConnected, localRecipeStore.initializationError != nil {
+                ContentUnavailableView {
+                    Label("Recipe Library Unavailable", systemImage: "externaldrive.badge.exclamationmark")
+                } description: {
+                    Text("Your saved data has been preserved. Try opening the library again, or restart the app. Please contact support if this continues.")
+                } actions: {
+                    Button("Try Again") {
+                        localRecipeStore.retryOpeningLibrary()
+                        Task { await recipeVM.loadRecipes(reset: true) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Connect to Server") {
+                        authVM.showServerSetup = true
+                        showRecoveryServerSetup = true
+                    }
+                }
+            } else if horizontalSizeClass == .regular {
                 iPadLayout
             } else {
                 mainTabView
             }
+        }
+        .sheet(isPresented: $showRecoveryServerSetup) {
+            LoginView(authVM: authVM, hideLocalMode: true)
         }
         .task {
             let vm = authVM
@@ -53,6 +74,7 @@ public struct ContentView: View {
         .onChange(of: authVM.isServerConnected) { _, connected in
             recipeVM.isLocalMode = !connected
             if connected {
+                showRecoveryServerSetup = false
                 Task {
                     await authVM.loadCurrentUser()
                     recipeVM.loadFavorites(user: authVM.currentUser)

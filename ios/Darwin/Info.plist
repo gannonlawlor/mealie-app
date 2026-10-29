@@ -2,27 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDisplayName</key>
-    <string>Cookbook - Mealie Companion</string>
-    <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>com.jackabee.mealie</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>mealie</string>
-            </array>
-        </dict>
-    </array>
-    <key>NSRemindersUsageDescription</key>
-    <string>Add recipe ingredients to your Reminders grocery list.</string>
-    <key>NSAppTransportSecurity</key>
-    <dict>
-        <key>NSAllowsArbitraryLoads</key>
-        <true/>
-    </dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.jackabee.mealie</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mealie</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

@@ -49,6 +49,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,6 +78,7 @@ fun SettingsScreen(authViewModel: AuthViewModel, shoppingViewModel: ShoppingView
     val shoppingState by shoppingViewModel.uiState.collectAsStateWithLifecycle()
     val isSyncing by container.recipeSyncService.isSyncing.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
 
     var selectedTheme by remember { mutableStateOf(settings.theme) }
     var keepScreenAwake by remember { mutableStateOf(settings.keepScreenAwake) }
@@ -281,6 +283,15 @@ fun SettingsScreen(authViewModel: AuthViewModel, shoppingViewModel: ShoppingView
                 ValueRow(title = "App Version", value = com.jackabee.mealie.BuildConfig.VERSION_NAME)
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 ValueRow(title = "Built with", value = "Jetpack Compose")
+            }
+
+            SettingsSection(header = "Help & Privacy") {
+                TextButton(onClick = { uriHandler.openUri("https://github.com/gannonlawlor/mealie-app/blob/main/docs/PRIVACY.md") }) {
+                    Text("Privacy Policy")
+                }
+                TextButton(onClick = { uriHandler.openUri("https://github.com/gannonlawlor/mealie-app/blob/main/docs/SUPPORT.md") }) {
+                    Text("Help & Support")
+                }
             }
 
             // Actions

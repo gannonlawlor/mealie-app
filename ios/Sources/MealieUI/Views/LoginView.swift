@@ -18,7 +18,7 @@ struct LoginView: View {
                         Image(systemName: "fork.knife.circle.fill")
                             .font(.system(size: 72))
                             .foregroundStyle(Color.accentColor)
-                        Text("Mealie")
+                        Text("Cookbook")
                             .font(.largeTitle)
                             .bold()
                         Text("Your Recipe Manager")
@@ -105,6 +105,12 @@ struct LoginView: View {
                 .padding()
                 .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                 .cornerRadius(10)
+
+            if authVM.serverURL.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("http://") {
+                Text("HTTP sends your sign-in details and recipes without encryption. Use HTTPS unless you trust this network.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Button(action: {
                 Task { await authVM.validateServer() }
