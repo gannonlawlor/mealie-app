@@ -24,7 +24,7 @@ Native mobile clients for [Mealie](https://mealie.io) — the self-hosted recipe
 
 | Recipes | Recipe Detail | Meal Plan |
 |---|---|---|
-| <img src="docs/screenshots/ios-recipes.png" width="230" alt="iOS recipe list"> | <img src="docs/screenshots/ios-recipe-detail.png" width="230" alt="iOS recipe detail"> | <img src="docs/screenshots/ios-meal-plan.png" width="230" alt="iOS meal plan"> |
+| <img src="docs/screenshots/iphone-recipes.png" width="230" alt="iOS recipe list"> | <img src="docs/screenshots/iphone-recipe-detail.png" width="230" alt="iOS recipe detail"> | <img src="docs/screenshots/iphone-meal-plan.png" width="230" alt="iOS meal plan"> |
 
 ## Browser Extension
 
