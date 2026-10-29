@@ -11,9 +11,10 @@ reliability, privacy, and release preparation should take priority over new feat
 
 ## Implementation checkpoint
 
-The code changes below have been implemented locally after this assessment. The
-original findings remain below as the rationale; their line numbers describe the
-reviewed version, not the new implementation.
+The code changes below were implemented after this assessment and uploaded to
+TestFlight as **1.1.20 (build 23)** on October 29, 2026. The changes and release
+tag `v1.1.20` are pushed to GitHub. The original findings remain below as the
+rationale; their line numbers describe the reviewed version, not the new implementation.
 
 - Login and reauthentication share a proper UTF-8 form encoder, including the
   iOS share extension. Regression cases cover plus, ampersand, percent, spaces,
@@ -38,7 +39,6 @@ reviewed version, not the new implementation.
 
 ### Remaining release steps
 
-- Commit/push the new privacy and support documents before shipping their links.
 - Test the additive image schema in development, then review and deploy its
   changes to the production iCloud container using CloudKit Console. Do not reset
   production data. Apple guidance:
@@ -50,7 +50,8 @@ reviewed version, not the new implementation.
   reviewer access, real screenshots, and a small beta/device QA pass.
 - Standalone export/restore, licensing choice, CI, and broader accessibility QA
   remain follow-up work; this implementation does not claim those are complete.
-- These local changes have not been uploaded to TestFlight or Google Play.
+- TestFlight upload succeeded; Apple processing and tester availability are
+  separate from upload completion. No Google Play release was published.
 
 ### Verification after implementation
 
@@ -74,6 +75,8 @@ reviewed version, not the new implementation.
   is compatible with Gradle's configuration cache.
 - `git diff --check` passes. These checks do not replace the physical-device,
   production CloudKit, live-server, and store-console checks above.
+- Privacy and support documents are now published on the repository's `main`
+  branch, matching the links in the apps.
 
 ## Resolve before launch
 
