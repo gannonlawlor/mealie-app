@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -167,7 +168,11 @@ private fun ServerSetupForm(
             onValueChange = onServerURLChange,
             placeholder = { Text("Server URL (e.g. mealie.example.com)") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Uri,
+            ),
             shape = RoundedCornerShape(10.dp),
             colors = fieldColors(),
             modifier = Modifier.fillMaxWidth(),
@@ -262,7 +267,11 @@ private fun LoginForm(
             onValueChange = onEmailChange,
             placeholder = { Text("Email") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Email,
+            ),
             shape = RoundedCornerShape(10.dp),
             colors = fieldColors(),
             modifier = Modifier.fillMaxWidth(),

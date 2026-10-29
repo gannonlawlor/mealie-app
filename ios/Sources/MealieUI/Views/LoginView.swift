@@ -99,6 +99,9 @@ struct LoginView: View {
 
             TextField("Server URL (e.g. mealie.example.com)", text: $authVM.serverURL)
                 .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .keyboardType(.URL)
+                .textContentType(.URL)
                 .padding()
                 .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                 .cornerRadius(10)
@@ -179,6 +182,9 @@ struct LoginView: View {
 
             TextField("Email", text: $authVM.email)
                 .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
+                .textContentType(.username)
                 .padding()
                 .background(AdaptiveColors.color(.field, isDark: colorScheme == .dark))
                 .cornerRadius(10)

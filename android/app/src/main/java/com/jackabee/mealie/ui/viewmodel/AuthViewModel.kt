@@ -104,8 +104,7 @@ class AuthViewModel(
     suspend fun validateServer() {
         _uiState.update { it.copy(isLoading = true, errorMessage = "") }
 
-        val raw = _uiState.value.serverURL
-        val url = if (raw.startsWith("http")) raw else "https://$raw"
+        val url = normalizeServerURL(_uiState.value.serverURL)
 
         try {
             api.configure(url)
@@ -257,6 +256,20 @@ class AuthViewModel(
     }
 
     companion object {
+        /**
+         * Trims whitespace and ensures an http(s) scheme. The scheme is matched case-insensitively
+         * (the keyboard may auto-capitalize "Https://") and lowercased; bare hosts get `https://`.
+         */
+        fun normalizeServerURL(raw: String): String {
+            val trimmed = raw.trim()
+            for (scheme in listOf("https://", "http://")) {
+                if (trimmed.startsWith(scheme, ignoreCase = true)) {
+                    return scheme + trimmed.substring(scheme.length)
+                }
+            }
+            return "https://$trimmed"
+        }
+
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 AuthViewModel(

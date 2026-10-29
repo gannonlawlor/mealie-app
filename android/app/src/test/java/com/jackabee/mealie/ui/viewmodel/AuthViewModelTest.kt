@@ -140,6 +140,27 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun `validateServer accepts auto-capitalized scheme`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.vm.updateServerURL("Https://mealie.example ")
+
+        env.vm.validateServer()
+
+        assertEquals("https://mealie.example", env.vm.uiState.value.serverURL)
+        assertEquals("https://mealie.example", env.api.configuredBaseUrl)
+    }
+
+    @Test
+    fun `normalizeServerURL handles scheme case, whitespace and bare hosts`() {
+        assertEquals("https://a.example", AuthViewModel.normalizeServerURL("a.example"))
+        assertEquals("https://a.example", AuthViewModel.normalizeServerURL("  a.example\n"))
+        assertEquals("https://a.example", AuthViewModel.normalizeServerURL("HTTPS://a.example"))
+        assertEquals("http://10.0.0.2:9000", AuthViewModel.normalizeServerURL("Http://10.0.0.2:9000"))
+        // A host that merely starts with "http" still needs a scheme
+        assertEquals("https://httpbin.example", AuthViewModel.normalizeServerURL("httpbin.example"))
+    }
+
+    @Test
     fun `validateServer failure shows connection message`() = runTest(mainRule.dispatcher) {
         val env = env()
         env.api.appInfoHandler = { throw IOException("down") }

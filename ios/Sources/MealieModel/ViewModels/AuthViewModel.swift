@@ -44,7 +44,7 @@ private let logger = Log(category: "Auth")
         isLoading = true
         errorMessage = ""
 
-        let url = serverURL.hasPrefix("http") ? serverURL : "https://\(serverURL)"
+        let url = Self.normalizeServerURL(serverURL)
 
         do {
             MealieAPI.shared.configure(baseURL: url)
@@ -54,9 +54,20 @@ private let logger = Log(category: "Auth")
             serverURL = url
             isLoading = false
         } catch {
+            logger.error("Server validation failed for \(url): \(error)")
             errorMessage = "Could not connect to server. Check the URL and try again."
             isLoading = false
         }
+    }
+
+    /// Trims whitespace and ensures an http(s) scheme. The scheme is matched case-insensitively
+    /// (the keyboard may auto-capitalize "Https://") and lowercased; bare hosts get `https://`.
+    nonisolated static func normalizeServerURL(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        for scheme in ["https://", "http://"] where trimmed.lowercased().hasPrefix(scheme) {
+            return scheme + trimmed.dropFirst(scheme.count)
+        }
+        return "https://\(trimmed)"
     }
 
     public func login() async {
