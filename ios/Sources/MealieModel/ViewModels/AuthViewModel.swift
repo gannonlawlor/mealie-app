@@ -134,9 +134,14 @@ private let logger = Log(category: "Auth")
 
             isAuthenticated = true
             isServerConnected = true
-        } catch is KeychainCredentialVault.VaultError {
+        } catch let error as KeychainCredentialVault.VaultError {
             guard operationID == operation, !Task.isCancelled else { return }
-            errorMessage = "Could not securely save your sign-in. Unlock your device and try again."
+            api.configure(baseURL: server)
+            currentUser = nil
+            isAuthenticated = false
+            isServerConnected = false
+            errorMessage = error.signInMessage
+            logger.error("Secure sign-in storage failed: \(error.localizedDescription)")
         } catch let error as APIError {
             guard operationID == operation, !Task.isCancelled else { return }
             switch error {

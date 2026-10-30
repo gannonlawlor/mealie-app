@@ -51,7 +51,32 @@ struct KeychainCredentialVault: CredentialVault {
         guard status == errSecSuccess else { throw VaultError.status(status) }
     }
 
-    enum VaultError: Error { case status(OSStatus), invalidData }
+    enum VaultError: LocalizedError {
+        case status(OSStatus), invalidData
+
+        var errorDescription: String? {
+            switch self {
+            case .status(let status):
+                let description = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown error"
+                return "Keychain error \(status): \(description)"
+            case .invalidData:
+                return "Keychain returned invalid credential data."
+            }
+        }
+
+        var signInMessage: String {
+            switch self {
+            case .status(errSecInteractionNotAllowed):
+                return "Could not securely save your sign-in. Unlock your device and try again."
+            case .status(errSecMissingEntitlement):
+                return "This version of Cookbook cannot access secure sign-in storage. Please update the app or contact support (code \(errSecMissingEntitlement))."
+            case .status(let status):
+                return "Could not securely save your sign-in. Please try again. If this continues, contact support (code \(status))."
+            case .invalidData:
+                return "Could not read your saved sign-in. Please try signing in again."
+            }
+        }
+    }
 }
 
 /// Never delete legacy data until the vault has accepted it. Failed migrations

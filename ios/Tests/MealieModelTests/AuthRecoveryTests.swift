@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import XCTest
 @testable import MealieModel
 
@@ -49,8 +50,12 @@ private actor ResponseGate {
 final class AuthRecoveryTests: XCTestCase {
     private final class Vault: CredentialVault {
         var values: [String: String] = [:]
+        var writeError: KeychainCredentialVault.VaultError?
         func read(_ key: String) throws -> String? { values[key] }
-        func write(_ value: String?, for key: String) throws { values[key] = value }
+        func write(_ value: String?, for key: String) throws {
+            if let writeError { throw writeError }
+            values[key] = value
+        }
     }
     private var originalURL = ""
     private var originalToken = ""
@@ -59,13 +64,15 @@ final class AuthRecoveryTests: XCTestCase {
     private var auth: AuthService!
     private var api: MealieAPI!
     private var session: URLSession!
+    private var vault: Vault!
 
     override func setUpWithError() throws {
         originalURL = MealieAPI.shared.baseURL
         originalToken = MealieAPI.shared.accessToken
         suite = "AuthRecoveryTests.\(UUID())"
         defaults = UserDefaults(suiteName: suite)!
-        auth = AuthService(store: defaults, credentials: SecureCredentialStore(vault: Vault(), legacy: [defaults]))
+        vault = Vault()
+        auth = AuthService(store: defaults, credentials: SecureCredentialStore(vault: vault, legacy: [defaults]))
         try auth.saveSession(serverURL: "https://recipes.example", token: "expired", userId: "user",
                              email: "cook@example.com", password: "old-password")
         let configuration = URLSessionConfiguration.ephemeral
@@ -202,5 +209,42 @@ final class AuthRecoveryTests: XCTestCase {
         await vm.login()
         XCTAssertFalse(vm.isLoading)
         XCTAssertEqual(vm.errorMessage, "Connection failed. Check your network.")
+    }
+
+    @MainActor
+    func testKeychainFailureShowsActionableErrorAndAllowsRetry() async {
+        AuthURLProtocol.install { request in
+            if request.url!.path == "/api/auth/token" {
+                return (200, #"{"access_token":"new-token","token_type":"bearer"}"#)
+            }
+            return (200, #"{"id":"user"}"#)
+        }
+        for status in [errSecInteractionNotAllowed, errSecMissingEntitlement, errSecNotAvailable] {
+            auth.softClearSession()
+            let vm = AuthViewModel(authService: auth, api: api)
+            vm.password = "password"
+            vault.writeError = .status(status)
+            await vm.login()
+
+            XCTAssertFalse(vm.isLoading)
+            XCTAssertFalse(vm.isAuthenticated)
+            XCTAssertFalse(vm.isServerConnected)
+            XCTAssertNil(vm.currentUser)
+            XCTAssertNil(auth.savedToken)
+            XCTAssertEqual(api.accessToken, "")
+            XCTAssertEqual(api.baseURL, "https://recipes.example")
+            XCTAssertEqual(vm.email, "cook@example.com")
+            XCTAssertEqual(vm.password, "password")
+            XCTAssertEqual(vm.errorMessage.contains("Unlock"), status == errSecInteractionNotAllowed)
+            if status != errSecInteractionNotAllowed {
+                XCTAssertTrue(vm.errorMessage.contains(String(status)))
+            }
+
+            vault.writeError = nil
+            await vm.login()
+            XCTAssertTrue(vm.isServerConnected)
+            XCTAssertFalse(vm.isLoading)
+            XCTAssertEqual(auth.savedToken, "new-token")
+        }
     }
 }

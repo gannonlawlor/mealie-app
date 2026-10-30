@@ -174,7 +174,8 @@ public class AuthService: @unchecked Sendable {
     public func saveSession(serverURL: String, token: String, userId: String, email: String? = nil, password: String? = nil) throws {
         store.set(false, forKey: sessionValidKey)
         store.set(UUID().uuidString, forKey: "mealie_session_revision")
-        guard store.synchronize() else { throw KeychainCredentialVault.VaultError.invalidData }
+        // UserDefaults enqueues writes in order. Do not gate Keychain writes on
+        // the obsolete synchronize() API or report its result as a vault error.
         MealieAPI.shared.configure(baseURL: "", token: "")
         try credentials.write(token, for: tokenKey)
         if let password { try credentials.write(password, for: passwordKey) }

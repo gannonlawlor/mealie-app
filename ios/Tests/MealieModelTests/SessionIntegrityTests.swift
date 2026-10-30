@@ -26,6 +26,34 @@ final class SessionIntegrityTests: XCTestCase {
         }
     }
 
+    private final class UnsynchronizedDefaults: UserDefaults, @unchecked Sendable {
+        var synchronizeCalls = 0
+        override func synchronize() -> Bool {
+            synchronizeCalls += 1
+            return false
+        }
+    }
+
+    func testSignInDoesNotDependOnObsoleteDefaultsSynchronization() throws {
+        let suite = "SessionIntegrityTests." + UUID().uuidString
+        let defaults = UnsynchronizedDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vault = Vault()
+        let credentials = SecureCredentialStore(vault: vault, legacy: [defaults])
+        let auth = AuthService(store: defaults, credentials: credentials)
+
+        try auth.saveSession(serverURL: "https://recipes.example", token: "token", userId: "user",
+                             email: "cook@example.com", password: "password")
+
+        XCTAssertEqual(defaults.synchronizeCalls, 0)
+        let restarted = AuthService(store: defaults, credentials: credentials)
+        XCTAssertTrue(restarted.restoreSession())
+        XCTAssertEqual(restarted.savedToken, "token")
+        XCTAssertEqual(restarted.savedPassword, "password")
+        XCTAssertNil(defaults.string(forKey: "mealie_access_token"))
+        XCTAssertNil(defaults.string(forKey: "mealie_password"))
+    }
+
     func testFailedSessionReplacementNeverRestoresMixedServerCredentials() throws {
         for key in ["mealie_access_token", "mealie_password"] {
             let suite = "SessionIntegrityTests." + UUID().uuidString
