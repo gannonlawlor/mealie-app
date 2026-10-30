@@ -48,6 +48,7 @@ struct LoginView: View {
             }
             .navigationTitle("")
         }
+        .onDisappear { authVM.cancelPendingAuthentication() }
     }
 
     var serverSetupForm: some View {
@@ -180,8 +181,7 @@ struct LoginView: View {
                     .font(.headline)
                 Spacer()
                 Button("Change Server") {
-                    authVM.showServerSetup = true
-                    authVM.errorMessage = ""
+                    authVM.changeServer()
                 }
                 .font(.caption)
             }

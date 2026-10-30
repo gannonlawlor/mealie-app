@@ -28,7 +28,13 @@ public class MealieAPI: @unchecked Sendable {
     /// Called on the main actor when a 401 persists after token refresh fails.
     public var onUnauthorized: @MainActor @Sendable () -> Void = {}
 
-    private init() {}
+    private let session: URLSession
+    private let authService: AuthService
+
+    init(session: URLSession = .shared, authService: AuthService = .shared) {
+        self.session = session
+        self.authService = authService
+    }
 
     public func configure(baseURL: String, token: String = "") {
         self.baseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
@@ -47,7 +53,7 @@ public class MealieAPI: @unchecked Sendable {
         guard let url = buildURL(path: "/api/auth/token") else {
             throw APIError.invalidURL
         }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = FormURLEncoder.encode([("username", email), ("password", password)])
@@ -73,6 +79,9 @@ public class MealieAPI: @unchecked Sendable {
             throw APIError.invalidURL
         }
         var request = URLRequest(url: url)
+        if path == "/api/auth/refresh" || path == "/api/users/self" || path == "/api/app/about" {
+            request.timeoutInterval = 30
+        }
         request.httpMethod = method
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -88,26 +97,45 @@ public class MealieAPI: @unchecked Sendable {
         return request
     }
 
-    private var isRefreshing = false
+    @MainActor private var refreshTask: (id: UUID, server: String, token: String, task: Task<Bool, Never>)?
 
+    /// All requests rejected for the same session wait for its recovery. A second
+    /// 401 must not sign the user out while the first request is still refreshing.
+    @MainActor
+    private func recoverSession(for request: URLRequest, server: String) async -> Bool {
+        guard baseURL == server,
+              let authorization = request.value(forHTTPHeaderField: "Authorization"),
+              !accessToken.isEmpty else { return false }
+        if authorization != "Bearer \(accessToken)" { return true }
+        if let refreshTask, refreshTask.server == server, refreshTask.token == accessToken {
+            return await refreshTask.task.value
+        }
+        let id = UUID()
+        let task = Task { await self.attemptTokenRefresh() }
+        refreshTask = (id, server, accessToken, task)
+        defer { if refreshTask?.id == id { refreshTask = nil } }
+        return await task.value
+    }
+
+    @MainActor
     private func attemptTokenRefresh() async -> Bool {
-        guard !isRefreshing else { return false }
-        isRefreshing = true
-        defer { isRefreshing = false }
+        let server = baseURL
+        let expiredToken = accessToken
 
         // Try the refresh endpoint first
         do {
             let token: AuthToken = try await {
                 let request = try buildRequest(method: "GET", path: "/api/auth/refresh")
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await session.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse,
                       (200...299).contains(httpResponse.statusCode) else {
                     throw APIError.unauthorized
                 }
                 return try JSONDecoder().decode(AuthToken.self, from: data)
             }()
+            guard baseURL == server, accessToken == expiredToken else { return false }
             accessToken = token.accessToken
-            AuthService.shared.savedToken = token.accessToken
+            authService.savedToken = token.accessToken
             logInfo("Token refreshed successfully")
             return true
         } catch {
@@ -115,12 +143,14 @@ public class MealieAPI: @unchecked Sendable {
         }
 
         // Refresh failed — try re-authenticating with saved credentials
-        return await attemptReAuthentication()
+        guard baseURL == server, accessToken == expiredToken else { return false }
+        return await attemptReAuthentication(server: server, expiredToken: expiredToken)
     }
 
-    private func attemptReAuthentication() async -> Bool {
-        guard let email = AuthService.shared.savedEmail,
-              let password = AuthService.shared.savedPassword else {
+    @MainActor
+    private func attemptReAuthentication(server: String, expiredToken: String) async -> Bool {
+        guard let email = authService.savedEmail,
+              let password = authService.savedPassword else {
             logInfo("No saved credentials for re-authentication")
             return false
         }
@@ -128,7 +158,7 @@ public class MealieAPI: @unchecked Sendable {
         do {
             let request = try loginRequest(email: email, password: password)
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 logInfo("Re-authentication failed with status code")
@@ -136,8 +166,9 @@ public class MealieAPI: @unchecked Sendable {
             }
 
             let token = try JSONDecoder().decode(AuthToken.self, from: data)
+            guard baseURL == server, accessToken == expiredToken else { return false }
             accessToken = token.accessToken
-            AuthService.shared.savedToken = token.accessToken
+            authService.savedToken = token.accessToken
             logInfo("Re-authentication successful")
             return true
         } catch {
@@ -154,15 +185,20 @@ public class MealieAPI: @unchecked Sendable {
         return request
     }
 
-    private func notifyUnauthorized() {
-        let callback = onUnauthorized
-        Task { @MainActor in callback() }
+    @MainActor
+    private func notifyUnauthorized(for request: URLRequest, server: String) {
+        // Ignore responses from a session that has since been cleared/replaced,
+        // and never treat an unsuccessful manual login as session expiration.
+        guard baseURL == server, !accessToken.isEmpty,
+              request.value(forHTTPHeaderField: "Authorization") == "Bearer \(accessToken)" else { return }
+        onUnauthorized()
     }
 
     func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
         logInfo("\(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "")")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let server = baseURL
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.noData
@@ -171,18 +207,18 @@ public class MealieAPI: @unchecked Sendable {
         logInfo("Response: \(httpResponse.statusCode)")
 
         if httpResponse.statusCode == 401 {
-            if await attemptTokenRefresh() {
+            if await recoverSession(for: request, server: server) {
                 let retryRequest = rebuildRequest(request)
-                let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                let (retryData, retryResponse) = try await session.data(for: retryRequest)
                 guard let retryHttp = retryResponse as? HTTPURLResponse else { throw APIError.noData }
-                if retryHttp.statusCode == 401 { notifyUnauthorized(); throw APIError.unauthorized }
+                if retryHttp.statusCode == 401 { await notifyUnauthorized(for: retryRequest, server: server); throw APIError.unauthorized }
                 guard (200...299).contains(retryHttp.statusCode) else {
                     throw APIError.serverError(retryHttp.statusCode, String(data: retryData, encoding: .utf8) ?? "")
                 }
                 do { return try JSONDecoder().decode(T.self, from: retryData) }
                 catch { throw APIError.decodingError(error) }
             }
-            notifyUnauthorized()
+            await notifyUnauthorized(for: request, server: server)
             throw APIError.unauthorized
         }
 
@@ -203,24 +239,25 @@ public class MealieAPI: @unchecked Sendable {
     }
 
     func performRaw(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let server = baseURL
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.noData
         }
 
         if httpResponse.statusCode == 401 {
-            if await attemptTokenRefresh() {
+            if await recoverSession(for: request, server: server) {
                 let retryRequest = rebuildRequest(request)
-                let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                let (retryData, retryResponse) = try await session.data(for: retryRequest)
                 guard let retryHttp = retryResponse as? HTTPURLResponse else { throw APIError.noData }
-                if retryHttp.statusCode == 401 { notifyUnauthorized(); throw APIError.unauthorized }
+                if retryHttp.statusCode == 401 { await notifyUnauthorized(for: retryRequest, server: server); throw APIError.unauthorized }
                 guard (200...299).contains(retryHttp.statusCode) else {
                     throw APIError.serverError(retryHttp.statusCode, String(data: retryData, encoding: .utf8) ?? "")
                 }
                 return (retryData, retryHttp)
             }
-            notifyUnauthorized()
+            await notifyUnauthorized(for: request, server: server)
             throw APIError.unauthorized
         }
 

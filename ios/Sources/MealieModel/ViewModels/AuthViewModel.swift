@@ -18,45 +18,79 @@ private let logger = Log(category: "Auth")
     public var savedServers: [SavedServer] = []
 
     public var isLocalMode: Bool {
-        AuthService.shared.savedAppMode == .local
+        authService.savedAppMode == .local
     }
 
-    public init() {
-        savedServers = AuthService.shared.savedServers
-        if AuthService.shared.savedAppMode == .local {
+    private let authService: AuthService
+    private let api: MealieAPI
+    private var operationID = UUID()
+
+    public convenience init() {
+        self.init(authService: .shared, api: .shared)
+    }
+
+    init(authService: AuthService, api: MealieAPI) {
+        self.authService = authService
+        self.api = api
+        serverURL = authService.savedServerURL ?? ""
+        email = authService.savedEmail ?? ""
+        savedServers = authService.savedServers
+        if authService.savedAppMode == .local {
             isAuthenticated = true
             showServerSetup = false
-        } else if AuthService.shared.restoreSession() {
+        } else if authService.restoreSession() {
             isAuthenticated = true
             isServerConnected = true
             showServerSetup = false
-            serverURL = AuthService.shared.savedServerURL ?? ""
+            api.configure(baseURL: serverURL, token: authService.savedToken ?? "")
+        } else if !serverURL.isEmpty {
+            api.configure(baseURL: serverURL)
+            showServerSetup = false
         }
     }
 
+    /// Invalidate work from a dismissed form or expired session. Late responses
+    /// must not re-enable an old session or change the next form's loading state.
+    public func cancelPendingAuthentication() {
+        operationID = UUID()
+        isLoading = false
+    }
+
+    public func changeServer() {
+        cancelPendingAuthentication()
+        showServerSetup = true
+        errorMessage = ""
+        serverInfo = nil
+    }
+
     public func enterLocalMode() {
-        AuthService.shared.startLocalMode()
+        cancelPendingAuthentication()
+        authService.startLocalMode()
         isAuthenticated = true
         showServerSetup = false
     }
 
     public func validateServer() async {
+        guard !isLoading else { return }
+        let operation = UUID()
+        operationID = operation
         isLoading = true
         errorMessage = ""
+        defer { if operationID == operation { isLoading = false } }
 
         let url = Self.normalizeServerURL(serverURL)
 
         do {
-            MealieAPI.shared.configure(baseURL: url)
-            let info = try await MealieAPI.shared.getAppInfo()
+            api.configure(baseURL: url)
+            let info = try await api.getAppInfo()
+            guard operationID == operation, !Task.isCancelled else { return }
             serverInfo = info
             showServerSetup = false
             serverURL = url
-            isLoading = false
         } catch {
+            guard operationID == operation, !Task.isCancelled else { return }
             logger.error("Server validation failed for \(url): \(error)")
             errorMessage = "Could not connect to server. Check the URL and try again."
-            isLoading = false
         }
     }
 
@@ -71,31 +105,40 @@ private let logger = Log(category: "Auth")
     }
 
     public func login() async {
+        guard !isLoading else { return }
+        let operation = UUID()
+        operationID = operation
         isLoading = true
         errorMessage = ""
+        defer { if operationID == operation { isLoading = false } }
 
+        let server = serverURL
+        let loginEmail = email
+        let loginPassword = password
+        api.configure(baseURL: server)
         do {
-            let token = try await MealieAPI.shared.login(email: email, password: password)
-            MealieAPI.shared.accessToken = token.accessToken
+            let token = try await api.login(email: loginEmail, password: loginPassword)
+            guard operationID == operation, !Task.isCancelled else { return }
+            api.accessToken = token.accessToken
 
-            let user = try await MealieAPI.shared.getCurrentUser()
-            currentUser = user
-
-            try AuthService.shared.saveSession(
-                serverURL: serverURL,
+            let user = try await api.getCurrentUser()
+            guard operationID == operation, !Task.isCancelled else { return }
+            try authService.saveSession(
+                serverURL: server,
                 token: token.accessToken,
                 userId: user.id,
-                email: email,
-                password: password
+                email: loginEmail,
+                password: loginPassword
             )
+            currentUser = user
 
             isAuthenticated = true
             isServerConnected = true
-            isLoading = false
         } catch is KeychainCredentialVault.VaultError {
+            guard operationID == operation, !Task.isCancelled else { return }
             errorMessage = "Could not securely save your sign-in. Unlock your device and try again."
-            isLoading = false
         } catch let error as APIError {
+            guard operationID == operation, !Task.isCancelled else { return }
             switch error {
             case .unauthorized:
                 errorMessage = "Invalid email or password."
@@ -108,17 +151,16 @@ private let logger = Log(category: "Auth")
                 errorMessage = "Login failed. Please try again."
                 logger.error("Login API error: \(error)")
             }
-            isLoading = false
         } catch {
+            guard operationID == operation, !Task.isCancelled else { return }
             errorMessage = "Connection failed. Check your network."
             logger.error("Login error: \(error)")
-            isLoading = false
         }
     }
 
     public func loadCurrentUser() async {
         do {
-            currentUser = try await MealieAPI.shared.getCurrentUser()
+            currentUser = try await api.getCurrentUser()
         } catch {
             logger.error("Failed to load user: \(error)")
         }
@@ -127,17 +169,21 @@ private let logger = Log(category: "Auth")
     /// Soft logout: clears auth but preserves server URL and email for quick re-login.
     /// Used when the server returns 401 and token refresh fails.
     public func softLogout() {
-        AuthService.shared.softClearSession()
+        cancelPendingAuthentication()
+        authService.softClearSession()
+        api.configure(baseURL: authService.savedServerURL ?? "")
+        errorMessage = "Your session has expired. Please sign in again."
         isAuthenticated = false
         isServerConnected = false
-        serverURL = AuthService.shared.savedServerURL ?? ""
-        email = AuthService.shared.savedEmail ?? ""
+        serverURL = authService.savedServerURL ?? ""
+        email = authService.savedEmail ?? ""
         password = ""
         showServerSetup = false // skip straight to login form
         currentUser = nil
     }
 
     public func selectSavedServer(_ server: SavedServer) {
+        cancelPendingAuthentication()
         serverURL = server.url
         email = server.email
         showServerSetup = false
@@ -146,8 +192,9 @@ private let logger = Log(category: "Auth")
     }
 
     public func logout() {
+        cancelPendingAuthentication()
         let wasLocal = isLocalMode
-        AuthService.shared.clearSession()
+        authService.clearSession()
         if !wasLocal {
             CacheService.shared.clearAll()
             OfflineRecipeStore.shared.clearAll()
@@ -160,6 +207,6 @@ private let logger = Log(category: "Auth")
         email = ""
         password = ""
         serverURL = ""
-        savedServers = AuthService.shared.savedServers
+        savedServers = authService.savedServers
     }
 }
