@@ -22,8 +22,8 @@ android {
         applicationId = "com.jackabee.mealie"
         minSdk = 26
         targetSdk = 36
-        versionCode = 23
-        versionName = "1.1.20"
+        versionCode = 24
+        versionName = "1.1.21"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
