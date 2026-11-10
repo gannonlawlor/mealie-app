@@ -17,6 +17,7 @@ not the official Mealie app.
 | Recipes | Recipe Detail | Meal Plan |
 |---|---|---|
 | <img src="docs/screenshots/iphone-recipes.png" width="230" alt="Recipe list"> | <img src="docs/screenshots/iphone-recipe-detail.png" width="230" alt="Recipe detail"> | <img src="docs/screenshots/iphone-meal-plan.png" width="230" alt="Meal plan"> |
+| <img src="docs/screenshots/android-recipes.png" width="230" alt="Recipe list on Android"> | <img src="docs/screenshots/android-recipe-detail.png" width="230" alt="Recipe detail on Android"> | <img src="docs/screenshots/android-meal-plan.png" width="230" alt="Meal plan on Android"> |
 
 ## Getting started
 
