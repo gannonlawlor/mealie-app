@@ -7,8 +7,8 @@ Firefox, and (via the generated wrapper app) Safari — no bundler, no npm depen
 ## What it does
 
 - **Detects recipes** on the page you are viewing by scanning schema.org `Recipe`
-  JSON-LD (the same structured data Mealie's own scraper uses). A green check badge
-  appears on the toolbar icon when a recipe is found.
+  JSON-LD (the same structured data Mealie's own scraper uses). A small green check
+  appears in the toolbar icon's lower-right corner when a recipe is found.
 - **Saves with one click** from the toolbar popup, or via the right-click context
   menu on any page or link ("Save recipe to Mealie"). The extension sends the URL to
   `POST /api/recipes/create/url` and your Mealie server does the scraping.
@@ -112,14 +112,14 @@ extension/
     popup.js           Popup logic
     options.js         Options logic
   icons/               16/32/48/128 px, from the approved Cookbook icon
-  test/                node --test unit tests for detect-core.js
+  test/                node --test recipe detection and toolbar lifecycle tests
   safari/              Generated Safari wrapper Xcode project
 ```
 
 Run the tests (requires Node 18+, no dependencies):
 
 ```sh
-node --test extension/test/detect.test.mjs
+node --test extension/test/*.test.mjs
 ```
 
 The popup and settings use Cookbook's terracotta and cream branding, with a dark
