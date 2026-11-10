@@ -27,7 +27,7 @@
 
   function showSaveStatus(html, cls) {
     saveStatus.hidden = false;
-    saveStatus.className = "save-status" + (cls ? " " + cls : "");
+    saveStatus.className = "save-status status" + (cls ? " " + cls : "");
     saveStatus.innerHTML = html;
   }
 
@@ -54,16 +54,17 @@
     saveStatus.hidden = true;
 
     try {
-      const slug = await Common.createRecipeFromUrl(settings, currentTab.url);
-      saveBtn.textContent = "Saved!";
+      await Common.createRecipeFromUrl(settings, currentTab.url);
+      saveBtn.textContent = "Saved to Mealie";
+      saveBtn.classList.add("saved");
       // Where to link after a save: the recipe page path varies across Mealie
       // versions ("/g/{group}/r/{slug}" on current releases, "/recipe/{slug}"
       // historically), and the group slug is unknown here. The reliable choice
       // is to link to the server root — every Mealie version lands the user in
-      // their recipe list — and surface the new slug as text.
+      // their recipe list.
       showSaveStatus(
-        'Saved! Recipe slug: <strong>' + escapeHtml(slug) + "</strong><br>" +
-          '<a href="' + escapeHtml(settings.serverUrl) + '" target="_blank" rel="noopener">Open Mealie</a>',
+        'Your recipe is ready in Mealie.<br>' +
+          '<a href="' + escapeHtml(settings.serverUrl) + '" target="_blank" rel="noopener">Open your recipes</a>',
         "ok"
       );
     } catch (err) {
@@ -94,6 +95,8 @@
       return;
     }
     viewMain.hidden = false;
+    el("server-label").textContent = "To " + new URL(settings.serverUrl).host;
+    el("server-label").title = settings.serverUrl;
 
     const tabs = await api.tabs.query({ active: true, currentWindow: true });
     currentTab = tabs && tabs[0];
@@ -106,18 +109,21 @@
     }
 
     el("page-title").textContent = currentTab.title || currentTab.url;
-    el("page-url").textContent = currentTab.url;
+    el("page-url").textContent = new URL(currentTab.url).hostname.replace(/^www\./, "");
+    el("page-url").title = currentTab.url;
 
     const detected = await queryDetection(currentTab.id);
     if (detected && detected.name) {
-      detectStatus.textContent = "Recipe detected: " + detected.name;
+      el("page-title").textContent = detected.name;
+      detectStatus.textContent = "Recipe found on this page";
       detectStatus.classList.add("found");
     } else if (detected) {
-      detectStatus.textContent = "Recipe detected on this page";
+      detectStatus.textContent = "Recipe found on this page";
       detectStatus.classList.add("found");
     } else {
       detectStatus.textContent = "No recipe detected — Mealie will still try this URL";
     }
+    el("page-title").title = el("page-title").textContent;
   }
 
   document.addEventListener("DOMContentLoaded", init);

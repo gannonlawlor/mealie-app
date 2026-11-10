@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "extension/options.html"
+        ],
+        "createdAt": "2026-11-10T01:17:03.148Z",
+        "reason": "Agent: both findings target disclosure separators. Chrome screenshots confirm labels are vertically centered in 56px summary rows; expanded fields have 24px bottom padding. No text touches the borders."
+      }
+    ]
+  }
+}

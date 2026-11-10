@@ -103,6 +103,7 @@ extension/
   manifest.json        MV3 manifest (Chrome service worker + Firefox event page)
   popup.html/.css      Toolbar popup
   options.html/.css    Settings page
+  theme.css            Shared Cookbook colors and controls (light/dark)
   src/
     common.js          browser/chrome shim, storage + Mealie API helpers
     detect-core.js     Pure JSON-LD Recipe finder (shared with the test suite)
@@ -110,7 +111,7 @@ extension/
     background.js      Badge, context menus, notifications, saves
     popup.js           Popup logic
     options.js         Options logic
-  icons/               16/32/48/128 px, derived from the Android launcher icon
+  icons/               16/32/48/128 px, from the approved Cookbook icon
   test/                node --test unit tests for detect-core.js
   safari/              Generated Safari wrapper Xcode project
 ```
@@ -120,3 +121,9 @@ Run the tests (requires Node 18+, no dependencies):
 ```sh
 node --test extension/test/detect.test.mjs
 ```
+
+The popup and settings use Cookbook's terracotta and cream branding, with a dark
+theme that follows the browser's color preference. Re-export the toolbar icons
+from the rounded extension artwork on macOS with `sh scripts/export-extension-icons.sh`.
+After changing extension files, click **Reload** on its card in
+`chrome://extensions`, then refresh recipe tabs to restart recipe detection.

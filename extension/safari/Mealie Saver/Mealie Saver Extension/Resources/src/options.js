@@ -27,6 +27,10 @@
     statusEl.textContent = "";
   }
 
+  function connectionMessage(info) {
+    return "Connected to Mealie v" + String(info.version).replace(/^v/i, "") + " as " + info.userName;
+  }
+
   function requireServerUrl() {
     const url = Common.normalizeServerUrl(serverInput.value);
     if (!url) {
@@ -115,7 +119,7 @@
         const info = await Common.testConnection({ serverUrl, token });
         el("api-token").value = "";
         await storeToken(serverUrl, token, el("email").value.trim());
-        showStatus("Connected to Mealie v" + info.version + " as " + info.userName, "ok");
+        showStatus(connectionMessage(info), "ok");
       } catch (err) {
         console.error("Mealie Recipe Saver: token check failed", err);
         showStatus(err.message || "Token check failed.", "err");
@@ -133,7 +137,7 @@
     await withBusy(el("btn-test"), "Testing…", async () => {
       try {
         const info = await Common.testConnection(settings);
-        showStatus("Connected to Mealie v" + info.version + " as " + info.userName, "ok");
+        showStatus(connectionMessage(info), "ok");
       } catch (err) {
         console.error("Mealie Recipe Saver: connection test failed", err);
         if (!silentErrors) showStatus(err.message || "Connection test failed.", "err");
@@ -147,6 +151,7 @@
     el("password").value = "";
     el("api-token").value = "";
     await refreshConnectedView();
+    el("signin-method").open = true;
     showStatus("Signed out. Stored server settings were removed.", "ok");
   }
 
@@ -157,6 +162,7 @@
     el("btn-signout").addEventListener("click", signOut);
     el("password").addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
     el("api-token").addEventListener("keydown", (e) => { if (e.key === "Enter") useToken(); });
-    await refreshConnectedView();
+    const settings = await refreshConnectedView();
+    el("signin-method").open = !Common.isConfigured(settings);
   });
 })();

@@ -2,34 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Mealie Recipe Saver</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cookbook — Mealie Recipe Saver</title>
+  <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <header class="header">
-    <img src="icons/icon-32.png" alt="" width="20" height="20">
-    <span>Mealie Recipe Saver</span>
+  <header class="header brand">
+    <img class="brand-icon" src="icons/icon-128.png" alt="" width="40" height="40">
+    <div>
+      <p class="brand-name">Cookbook</p>
+      <p class="brand-description">Mealie Recipe Saver</p>
+    </div>
   </header>
 
-  <!-- Not configured yet -->
-  <section id="view-setup" class="view" hidden>
-    <p class="muted">Connect the extension to your Mealie server to start saving recipes.</p>
-    <button id="btn-open-options" class="btn btn-primary" type="button">Set up your Mealie server</button>
-  </section>
+  <main>
+    <section id="view-setup" class="view" hidden>
+      <h1 class="setup-title">A place for every recipe.</h1>
+      <p class="muted">Connect to your Mealie server, then save recipes as you browse.</p>
+      <button id="btn-open-options" class="btn btn-primary" type="button">Connect to Mealie</button>
+    </section>
 
-  <!-- Configured: main save view -->
-  <section id="view-main" class="view" hidden>
-    <div class="page-info">
-      <div id="page-title" class="page-title"></div>
-      <div id="page-url" class="page-url"></div>
-    </div>
-    <div id="detect-status" class="detect-status"></div>
-    <button id="btn-save" class="btn btn-primary" type="button">Save to Mealie</button>
-    <div id="save-status" class="save-status" hidden></div>
-  </section>
+    <section id="view-main" class="view" hidden>
+      <div class="page-info">
+        <h1 id="page-title" class="page-title"></h1>
+        <p id="page-url" class="page-url"></p>
+      </div>
+      <p id="detect-status" class="detect-status" role="status"></p>
+      <button id="btn-save" class="btn btn-primary" type="button">Save to Mealie</button>
+      <div id="save-status" class="save-status status" role="status" aria-live="polite" hidden></div>
+    </section>
+  </main>
 
   <footer class="footer">
-    <a href="#" id="link-options">Options</a>
+    <span id="server-label" class="server-label">Your recipes, together.</span>
+    <a href="#" id="link-options">Settings</a>
   </footer>
 
   <script src="src/common.js"></script>

@@ -2,47 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Mealie Recipe Saver — Options</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cookbook — Settings</title>
+  <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <main class="wrap">
-    <header class="header">
-      <img src="icons/icon-32.png" alt="" width="24" height="24">
-      <h1>Mealie Recipe Saver</h1>
+    <header class="header brand">
+      <img class="brand-icon" src="icons/icon-128.png" alt="" width="44" height="44">
+      <div>
+        <p class="brand-name">Cookbook</p>
+        <p class="brand-description">Mealie Recipe Saver</p>
+      </div>
     </header>
 
-    <section class="card">
-      <label for="server-url">Server URL</label>
-      <input id="server-url" type="url" placeholder="https://mealie.example.com" autocomplete="off" spellcheck="false">
-      <p class="hint">The address of your Mealie server, e.g. <code>https://mealie.example.com</code>.</p>
-    </section>
+    <h1>Your Mealie connection</h1>
+    <p class="intro">Connect your Mealie server to keep the recipes you find.</p>
+    <p id="status" class="status" role="status" aria-live="polite" hidden></p>
 
-    <section id="section-auth" class="card">
-      <h2>Sign in</h2>
-
-      <div class="auth-block">
-        <label for="email">Email</label>
-        <input id="email" type="email" autocomplete="username" spellcheck="false">
-        <label for="password">Password</label>
-        <input id="password" type="password" autocomplete="current-password">
-        <button id="btn-signin" class="btn btn-primary" type="button">Sign In</button>
-        <p class="hint">Your password is sent only to your server to obtain a token and is never stored.
-          Note that login tokens expire after a while; for a set-and-forget setup use an API token below.</p>
-      </div>
-
-      <div class="divider"><span>or</span></div>
-
-      <div class="auth-block">
-        <label for="api-token">API token</label>
-        <input id="api-token" type="password" autocomplete="off" spellcheck="false" placeholder="Long-lived token from Mealie">
-        <button id="btn-use-token" class="btn btn-primary" type="button">Use token</button>
-        <p class="hint">Create one in Mealie under <em>User Profile → Manage Your API Tokens</em>. Recommended — it does not expire.</p>
-      </div>
-    </section>
-
-    <section id="section-connected" class="card" hidden>
-      <h2>Connection</h2>
+    <section id="section-connected" class="connection" aria-labelledby="connection-heading" hidden>
+      <h2 id="connection-heading">Your connection</h2>
       <p id="connected-as"></p>
       <div class="row">
         <button id="btn-test" class="btn" type="button">Test connection</button>
@@ -50,9 +30,38 @@
       </div>
     </section>
 
-    <p id="status" class="status" hidden></p>
-  </main>
+    <section class="server-section" aria-labelledby="server-heading">
+      <h2 id="server-heading">Mealie server</h2>
+      <label for="server-url">Server URL</label>
+      <input id="server-url" type="url" placeholder="https://mealie.example.com" autocomplete="off" spellcheck="false" aria-describedby="server-hint">
+      <p id="server-hint" class="hint">Use the address you visit to open Mealie in your browser.</p>
+    </section>
 
+    <section id="section-auth" class="auth-section" aria-label="Authentication">
+      <details class="auth-method" id="signin-method" open>
+        <summary>Sign in with email</summary>
+        <div class="auth-fields">
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="username" spellcheck="false">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" aria-describedby="password-hint">
+          <button id="btn-signin" class="btn btn-primary" type="button">Sign in</button>
+          <p id="password-hint" class="hint">Your password is sent only to your server and is never stored. When the login token expires, sign in again.</p>
+        </div>
+      </details>
+
+      <details class="auth-method" id="token-method">
+        <summary>Use an API token</summary>
+        <div class="auth-fields">
+          <p id="token-hint" class="hint">Create a token in Mealie under <strong>User Profile → Manage Your API Tokens</strong>.</p>
+          <label for="api-token">API token</label>
+          <input id="api-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your Mealie API token" aria-describedby="token-hint">
+          <button id="btn-use-token" class="btn btn-primary" type="button">Use token</button>
+        </div>
+      </details>
+    </section>
+    <footer class="settings-footer">Recipes go straight to your Mealie server.</footer>
+  </main>
   <script src="src/common.js"></script>
   <script src="src/options.js"></script>
 </body>
