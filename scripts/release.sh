@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-source "$SCRIPT_DIR/xcode-session.sh"
-
 XCCONFIG="ios/Darwin/MealieApp.xcconfig"
 PBXPROJ="ios/Darwin/MealieApp.xcodeproj/project.pbxproj"
 GRADLE_APP="android/app/build.gradle.kts"
@@ -46,8 +43,6 @@ if [[ "${2:-}" != "--yes" && "${2:-}" != "-y" ]]; then
 fi
 
 # 1. Update iOS versions (xcconfig + ShareExtension overrides in pbxproj)
-# Fail before changing versions if Xcode cannot safely access its credentials.
-require_unlocked_desktop
 sed -i '' "s/^MARKETING_VERSION = .*/MARKETING_VERSION = $NEW_VERSION/" "$XCCONFIG"
 sed -i '' "s/^CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEW_BUILD/" "$XCCONFIG"
 sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = $NEW_VERSION;/g" "$PBXPROJ"
@@ -62,7 +57,7 @@ echo "Updated version files."
 # 3. Build for release (archive)
 echo "Archiving..."
 ARCHIVE_PATH="build/MealieApp.xcarchive"
-run_xcode_unlocked -project ios/Darwin/MealieApp.xcodeproj -scheme "$SCHEME" \
+xcodebuild -project ios/Darwin/MealieApp.xcodeproj -scheme "$SCHEME" \
     -destination 'generic/platform=iOS' \
     -archivePath "$ARCHIVE_PATH" \
     archive \
@@ -72,7 +67,7 @@ run_xcode_unlocked -project ios/Darwin/MealieApp.xcodeproj -scheme "$SCHEME" \
 
 # 4. Export and upload to TestFlight
 echo "Uploading to TestFlight..."
-run_xcode_unlocked -exportArchive \
+xcodebuild -exportArchive \
     -archivePath "$ARCHIVE_PATH" \
     -exportOptionsPlist scripts/ExportOptions.plist \
     -allowProvisioningUpdates \
