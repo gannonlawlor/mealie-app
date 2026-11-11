@@ -59,6 +59,11 @@ android {
         jvmTarget = "17"
     }
 
+    // Compile with JDK 17 regardless of which JDK launched Gradle.
+    kotlin {
+        jvmToolchain(17)
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true

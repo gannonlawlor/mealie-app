@@ -47,7 +47,8 @@ cd ios && xcodebuild test -scheme mealie-app-Package \
 cd android && ./gradlew assembleDebug test
 ```
 
-Android needs `android/local.properties` with `sdk.dir=$HOME/Library/Android/sdk`
+Android builds on JDK 17, pinned in the root `mise.toml` (run Gradle via `mise exec -- ./gradlew …`
+if your shell hasn't activated mise). Android needs `android/local.properties` with `sdk.dir=$HOME/Library/Android/sdk`
 (gitignored; SDK platform 35 + build-tools 35.0.0).
 
 ## Architecture Rules
