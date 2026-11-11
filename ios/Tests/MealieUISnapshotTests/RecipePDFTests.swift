@@ -5,6 +5,23 @@ import XCTest
 
 @MainActor
 final class RecipePDFTests: XCTestCase {
+    func testOriginalRecipeHasClickableLinkNearTopOfPDF() throws {
+        let url = "https://example.com/recipes/soup?servings=4&unit=metric"
+        let data = try JSONSerialization.data(withJSONObject: ["name": "Soup", "orgURL": url,
+            "description": "A cozy soup.", "recipeIngredient": [["display": "2 cups rice"]]])
+        let recipe = try JSONDecoder().decode(Recipe.self, from: data)
+        let pdf = try XCTUnwrap(PDFDocument(data: RecipePDFRenderer.data(for: recipe)))
+        let page = try XCTUnwrap(pdf.page(at: 0))
+        let annotation = try XCTUnwrap(page.annotations.first { $0.url?.absoluteString == url })
+        XCTAssertEqual(annotation.type, "Link")
+        XCTAssertGreaterThan(annotation.bounds.minY, page.bounds(for: .mediaBox).height * 0.75)
+        let label = try XCTUnwrap(pdf.findString("Original recipe: example.com", withOptions: []).first)
+        XCTAssertTrue(annotation.bounds.intersects(label.bounds(for: page)))
+        let text = try XCTUnwrap(page.string)
+        XCTAssertLessThan(try XCTUnwrap(text.range(of: "Original recipe:")).lowerBound,
+                          try XCTUnwrap(text.range(of: "A cozy soup.")).lowerBound)
+    }
+
     func testSharingCreatesUniqueNamedPDFWithRecipeContents() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -34,7 +51,7 @@ final class RecipePDFTests: XCTestCase {
         let steps = (1...70).map { ["text": "Instruction \($0): " + String(repeating: "Stir gently and check the texture. ", count: 8)] }
         let data = try JSONSerialization.data(withJSONObject: ["name": "Soup for a crowd", "description": "A printable recipe with complete instructions.",
             "recipeYield": "12 servings", "prepTime": "PT15M", "recipeIngredient": [["display": "2 cups rice"], ["display": "1 tablespoon fresh parsley"]],
-            "recipeInstructions": steps])
+            "recipeInstructions": steps, "orgURL": "https://example.com/recipes/soup?servings=12&unit=metric"])
         let recipe = try JSONDecoder().decode(Recipe.self, from: data)
         let pdf = RecipePDFRenderer.data(for: recipe)
         let document = try XCTUnwrap(PDFDocument(data: pdf))

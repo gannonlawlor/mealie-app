@@ -5,6 +5,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RecipePrintDocumentTest {
+    @Test fun originalRecipeLinkComesImmediatelyAfterTitle() {
+        val html = RecipePrintDocument.html(Recipe(name = "Soup", description = "Description", orgURL = " https://example.com/soup?a=1&b=2 "))
+        assertTrue(html.contains("<h1>Soup</h1><p class='source'><a href=\"https://example.com/soup?a=1&amp;b=2\">Original recipe: example.com</a></p><p>Description</p>"))
+        assertFalse(html.contains("<strong>Source:</strong>"))
+    }
+
+    @Test fun missingOrNonWebSourcesDoNotCreateLinks() {
+        listOf(null, "", "  ", "javascript:alert(1)", "file:///tmp/recipe", "https:///", "not a URL").forEach { source ->
+            val recipe = Recipe(name = "Soup", orgURL = source)
+            assertNull(RecipePrintDocument.originalRecipeURL(recipe))
+            assertFalse(RecipePrintDocument.html(recipe).contains("<a href="))
+        }
+    }
+
     @Test fun printUsesDisplayedContentAndEscapesMarkup() {
         val recipe = Recipe(name = "Soup & <script>bad()</script>", description = "Line one\nLine two",
             recipeYield = "4 servings", prepTime = "PT15M",

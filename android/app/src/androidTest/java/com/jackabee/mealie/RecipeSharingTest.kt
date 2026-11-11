@@ -19,8 +19,28 @@ import androidx.test.filters.SdkSuppress
 class RecipeSharingTest {
     private val context = ApplicationProvider.getApplicationContext<Application>()
 
+    @Test fun originalRecipeIsClickableNearTopOfSharedPdf() {
+        val url = "https://example.com/recipes/soup?servings=4&unit=metric"
+        val intent = RecipeSharer.prepare(context, Recipe(name = "Soup", orgURL = url, description = "A cozy soup."))
+        val uri = intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)!!
+        context.contentResolver.openFileDescriptor(uri, "r")!!.use { descriptor ->
+            PdfRenderer(descriptor).use { pdf ->
+                pdf.openPage(0).use { page ->
+                    val text = page.textContents.joinToString(" ") { it.text }
+                    assertTrue("Links: ${page.linkContents.map { it.uri }}; text: $text",
+                        page.linkContents.any { it.uri.toString() == url })
+                    val link = page.linkContents.single { it.uri.toString() == url }
+                    assertTrue(link.bounds.isNotEmpty())
+                    assertTrue(link.bounds.all { it.top >= 36 && it.bottom < page.height * 0.25 })
+                    assertTrue(text.contains("Original recipe: example.com"))
+                    assertTrue(text.indexOf("Original recipe:") < text.indexOf("A cozy soup."))
+                }
+            }
+        }
+    }
+
     @Test fun shareDefaultsToReadablePdfAttachmentWithTemporaryReadAccess() {
-        val recipe = Recipe(name = "Soup / family: recipe", recipeInstructions = (1..70).map {
+        val recipe = Recipe(name = "Soup / family: recipe", orgURL = "https://example.com/soup", recipeInstructions = (1..70).map {
             RecipeInstruction(text = "Instruction $it: " + "Stir gently and check the texture. ".repeat(8))
         })
         val intent = RecipeSharer.prepare(context, recipe)

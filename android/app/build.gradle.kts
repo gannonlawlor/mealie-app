@@ -130,6 +130,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.coil.compose)
+    implementation(libs.pdfbox.android)
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.androidx.room.runtime)

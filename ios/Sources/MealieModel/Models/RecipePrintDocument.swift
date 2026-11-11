@@ -2,6 +2,14 @@ import Foundation
 
 /// A self-contained, escaped print document built from the currently displayed recipe.
 public enum RecipePrintDocument {
+    public static func originalRecipeURL(for recipe: Recipe) -> URL? {
+        guard let raw = recipe.orgURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = url.host, !host.isEmpty else { return nil }
+        return url
+    }
+
     public static func html(for recipe: Recipe) -> String {
         func escape(_ text: String) -> String {
             text.replacingOccurrences(of: "&", with: "&amp;")
@@ -24,6 +32,9 @@ public enum RecipePrintDocument {
                 .replacingOccurrences(of: "M", with: "m ").replacingOccurrences(of: "S", with: "s").trimmingCharacters(in: .whitespaces)
         }
         var body = "<h1>\(escape(recipe.name?.isEmpty == false ? recipe.name! : "Recipe"))</h1>"
+        if let url = originalRecipeURL(for: recipe) {
+            body += "<p class='source'><a href=\"\(escape(url.absoluteString))\">Original recipe: \(escape(url.host!))</a></p>"
+        }
         body += paragraph(recipe.description)
         body += "<div class='metadata'>" + field("Yield", recipe.recipeYield)
         body += field("Prep", duration(recipe.prepTime)) + field("Cook", duration(recipe.performTime)) + field("Total", duration(recipe.totalTime))
@@ -54,7 +65,6 @@ public enum RecipePrintDocument {
                 + field("Carbs", n.carbohydrateContent) + field("Fiber", n.fiberContent) + field("Sugar", n.sugarContent)
             if !values.isEmpty { body += "<h2>Nutrition</h2><div class='metadata'>\(values)</div>" }
         }
-        body += field("Source", recipe.orgURL)
         return """
         <!doctype html><html><head><meta charset="utf-8"><title>\(escape(recipe.name ?? "Recipe"))</title>
         <style>
@@ -63,6 +73,7 @@ public enum RecipePrintDocument {
         h2 { font-size: 15pt; margin: 20pt 0 8pt; page-break-after: avoid; }
         h3 { font-size: 12pt; margin: 12pt 0 5pt; page-break-after: avoid; }
         p { margin: 0 0 8pt; white-space: pre-wrap; overflow-wrap: anywhere; word-wrap: break-word; }
+        .source a { color: #1565c0; text-decoration: underline; }
         .metadata p { margin-bottom: 3pt; } .ingredient { margin-bottom: 5pt; }
         </style></head><body>\(body)</body></html>
         """

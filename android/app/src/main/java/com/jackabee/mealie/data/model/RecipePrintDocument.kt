@@ -1,7 +1,15 @@
 package com.jackabee.mealie.data.model
 
+import java.net.URI
+
 /** Print exactly the loaded recipe, with no server request or executable HTML from its content. */
 object RecipePrintDocument {
+    fun originalRecipeURL(recipe: Recipe): URI? = try {
+        recipe.orgURL?.trim()?.let { URI(it) }?.takeIf {
+            it.scheme?.lowercase() in setOf("http", "https") && !it.host.isNullOrBlank()
+        }
+    } catch (_: java.net.URISyntaxException) { null }
+
     fun html(recipe: Recipe): String {
         fun escape(text: String) = text.replace("&", "&amp;").replace("<", "&lt;")
             .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
@@ -11,6 +19,9 @@ object RecipePrintDocument {
             value.drop(2).replace("H", "h ").replace("M", "m ").replace("S", "s").trim() else value
         val body = buildString {
             append("<h1>${escape(recipe.name?.takeIf { it.isNotEmpty() } ?: "Recipe")}</h1>")
+            originalRecipeURL(recipe)?.let { url ->
+                append("<p class='source'><a href=\"${escape(url.toASCIIString())}\">Original recipe: ${escape(url.host)}</a></p>")
+            }
             append(paragraph(recipe.description))
             append("<div class='metadata'>")
             append(field("Yield", recipe.recipeYield))
@@ -44,7 +55,6 @@ object RecipePrintDocument {
                     field("Carbs", n.carbohydrateContent) + field("Fiber", n.fiberContent) + field("Sugar", n.sugarContent)
                 if (values.isNotEmpty()) append("<h2>Nutrition</h2><div class='metadata'>$values</div>")
             }
-            append(field("Source", recipe.orgURL))
         }
         return """
             <!doctype html><html><head><meta charset="utf-8"><title>${escape(recipe.name ?: "Recipe")}</title>
@@ -55,6 +65,7 @@ object RecipePrintDocument {
             h2 { font-size: 15pt; margin: 20pt 0 8pt; page-break-after: avoid; }
             h3 { font-size: 12pt; margin: 12pt 0 5pt; page-break-after: avoid; }
             p { margin: 0 0 8pt; white-space: pre-wrap; overflow-wrap: anywhere; word-wrap: break-word; }
+            .source a { color: #1565c0; text-decoration: underline; }
             .metadata p { margin-bottom: 3pt; } .ingredient { margin-bottom: 5pt; }
             </style></head><body>$body</body></html>
         """.trimIndent()
