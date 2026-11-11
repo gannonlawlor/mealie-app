@@ -61,6 +61,7 @@ data class RecipeUiState(
     val duplicateRecipe: Recipe? = null,
     val showDuplicateAlert: Boolean = false,
     val pendingImportRecipe: Recipe? = null,
+    val pendingSharedImportCount: Int = 0,
     val duplicateMatchedByURL: Boolean = false,
     // Offline
     val offlineRecipeIds: Set<String> = emptySet(),
@@ -78,6 +79,8 @@ class RecipeViewModel(
     private val cache: CacheService,
     private val parser: RecipeParser,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val importQueue: com.jackabee.mealie.data.auth.AuthStore? = null,
+    private val imageVersions: com.jackabee.mealie.data.store.RecipeImageVersions? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RecipeUiState())
@@ -123,7 +126,7 @@ class RecipeViewModel(
         }
         val success = syncService.syncAll()
         loadRecipes(reset = true)
-        _uiState.update { it.copy(errorMessage = if (success) "" else "Failed to refresh recipes. Showing saved recipes.", errorDetail = "") }
+        _uiState.update { it.copy(errorMessage = if (success) "" else if (syncService.pendingRecipeCount > 0) "Some recipes could not be downloaded. Retry Recipe Sync in Settings." else "Failed to refresh recipes. Showing saved recipes.", errorDetail = "") }
         if (success) {
             val slug = _uiState.value.selectedRecipe?.slug
             if (slug != null) {
@@ -220,6 +223,7 @@ class RecipeViewModel(
             return
         }
 
+        _uiState.update { it.copy(selectedRecipe = null, errorMessage = "", errorDetail = "") }
         // Read from sync store if available
         val synced = withContext(ioDispatcher) { syncService.loadRecipeBySlug(slug) }
         if (synced != null) {
@@ -233,10 +237,14 @@ class RecipeViewModel(
             val recipe = withContext(ioDispatcher) { api.getRecipe(slug) }
             withContext(ioDispatcher) { syncService.updateRecipe(recipe) }
             _uiState.update { it.copy(selectedRecipe = recipe, isLoadingDetail = false) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to load recipe detail: $e", e)
+            val saved = withContext(ioDispatcher) { offlineStore.loadRecipeBySlug(slug) }
             _uiState.update {
-                it.copy(errorMessage = "Failed to load recipe.", errorDetail = errorDetail(e), isLoadingDetail = false)
+                it.copy(selectedRecipe = saved, errorMessage = if (saved != null) "Showing the saved offline copy." else "Failed to load recipe.",
+                    errorDetail = errorDetail(e), isLoadingDetail = false)
             }
         }
     }
@@ -317,9 +325,38 @@ class RecipeViewModel(
 
     // MARK: Import
 
+    val hasPendingSharedImports: Boolean get() = _uiState.value.pendingSharedImportCount > 0
+    private var drainingShares = false
+    private var queuedDuplicateURL: String? = null
+
+    suspend fun processPendingImports() {
+        val queue = importQueue ?: return
+        if (drainingShares || _uiState.value.isImporting || _uiState.value.pendingImportRecipe != null) return
+        drainingShares = true
+        try {
+            while (true) {
+                val url = queue.pendingImportURLs().firstOrNull() ?: break
+                updateImportURL(url)
+                val saved = importFromURL()
+                if (_uiState.value.pendingImportRecipe != null) {
+                    queuedDuplicateURL = url
+                    break
+                }
+                if (!saved) {
+                    _uiState.update { it.copy(errorMessage = "A shared link could not be imported. Retry Shared Imports to try again.") }
+                    break
+                }
+                queue.removePendingImportURL(url)
+            }
+        } finally {
+            drainingShares = false
+            _uiState.update { it.copy(pendingSharedImportCount = queue.pendingImportURLs().size) }
+        }
+    }
+
     suspend fun importFromURL(): Boolean {
         val importURL = _uiState.value.importURL
-        if (importURL.isEmpty()) return false
+        if (importURL.isEmpty() || _uiState.value.isImporting || _uiState.value.pendingImportRecipe != null) return false
         _uiState.update { it.copy(isImporting = true, importMessage = "") }
 
         if (_uiState.value.isLocalMode) {
@@ -362,6 +399,9 @@ class RecipeViewModel(
                 }
                 loadRecipes(reset = true)
                 true
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isImporting = false) }
+                throw e
             } catch (e: RecipeParseException) {
                 AppLog.w(TAG, "Local import error: $e", e)
                 val message = when (e) {
@@ -468,13 +508,16 @@ class RecipeViewModel(
         return true
     }
 
-    fun clearDuplicateState() = _uiState.update {
-        it.copy(
+    fun clearDuplicateState() {
+        queuedDuplicateURL?.let { importQueue?.removePendingImportURL(it) }
+        queuedDuplicateURL = null
+        _uiState.update { it.copy(
             duplicateRecipe = null,
             pendingImportRecipe = null,
             showDuplicateAlert = false,
             duplicateMatchedByURL = false,
-        )
+            pendingSharedImportCount = importQueue?.pendingImportURLs()?.size ?: 0,
+        ) }
     }
 
     // MARK: Search
@@ -605,7 +648,7 @@ class RecipeViewModel(
             }
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to save recipe offline: $e", e)
-            _uiState.update { it.copy(isSavingOffline = false) }
+            _uiState.update { it.copy(isSavingOffline = false, errorMessage = "Could not save recipe offline. Please try again.", errorDetail = errorDetail(e)) }
         }
     }
 
@@ -622,6 +665,16 @@ class RecipeViewModel(
         }
     }
 
+    suspend fun saveRecipeEdits(slug: String, data: Recipe, imageData: ByteArray?): Boolean {
+        if (!updateRecipe(slug, data)) return false
+        if (imageData != null && !uploadImage(_uiState.value.selectedRecipe?.slug ?: slug, imageData)) {
+            _uiState.update { it.copy(errorMessage = "Recipe saved, but the image could not be saved. Please try again.") }
+            return false
+        }
+        _uiState.update { it.copy(errorMessage = "", errorDetail = "") }
+        return true
+    }
+
     // MARK: Image Upload
 
     suspend fun uploadImage(slug: String, imageData: ByteArray): Boolean {
@@ -629,13 +682,17 @@ class RecipeViewModel(
             val id = _uiState.value.selectedRecipe?.id ?: return false
             return persistLocalChange {
                 check(localStore.saveImage(imageData, id).isNotEmpty()) { "The recipe image could not be saved." }
+                imageVersions?.invalidate(id)
             }
         }
 
         return try {
             withContext(ioDispatcher) { api.uploadRecipeImage(slug, imageData) }
-            // Note: on iOS the ImageCacheService is invalidated here; on Android
-            // image caching is handled by Coil, keyed by URL.
+            _uiState.value.selectedRecipe?.id?.let { id ->
+                imageVersions?.invalidate(id)
+                withContext(ioDispatcher) { offlineStore.replaceImageIfSaved(id, imageData) }
+            }
+            _uiState.update { it.copy(errorMessage = "", errorDetail = "") }
             true
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to upload recipe image: $e", e)
@@ -648,7 +705,7 @@ class RecipeViewModel(
 
     // MARK: Local create
 
-    suspend fun createLocalRecipe(name: String): Recipe? {
+    fun makeLocalRecipeDraft(name: String): Recipe {
         val now = isoNow()
         val recipe = Recipe(
             id = UUID.randomUUID().toString(),
@@ -659,6 +716,11 @@ class RecipeViewModel(
             createdAt = now,
             updatedAt = now,
         )
+        return recipe
+    }
+
+    suspend fun createLocalRecipe(name: String): Recipe? {
+        val recipe = makeLocalRecipeDraft(name)
         if (!persistLocalChange { localStore.saveRecipe(recipe) }) {
             _uiState.update { it.copy(importMessage = it.errorMessage) }
             return null
@@ -731,6 +793,8 @@ class RecipeViewModel(
                     offlineStore = container.offlineRecipeStore,
                     cache = container.cache,
                     parser = container.recipeUrlParser,
+                    importQueue = container.authStore,
+                    imageVersions = container.recipeImageVersions,
                 )
             }
         }

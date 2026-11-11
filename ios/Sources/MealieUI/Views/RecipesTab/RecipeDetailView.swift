@@ -19,6 +19,9 @@ struct RecipeDetailView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
 
+    @State private var recipeToPrint: Recipe?
+    @State private var recipeToShare: RecipePDFFile?
+
     var body: some View {
         Group {
             if recipeVM.isLoadingDetail {
@@ -43,6 +46,8 @@ struct RecipeDetailView: View {
                             .foregroundStyle(recipeVM.isFavorite(slug: slug) ? .red : .primary)
                     }
 
+                    .accessibilityLabel(recipeVM.isFavorite(slug: slug) ? "Remove from favorites" : "Add to favorites")
+
                     if !recipeVM.isLocalMode, let recipeId = recipeVM.selectedRecipe?.id {
                         Button(action: {
                             Task { await recipeVM.toggleOffline(slug: slug, recipeId: recipeId) }
@@ -54,6 +59,7 @@ struct RecipeDetailView: View {
                                     .foregroundStyle(recipeVM.isOffline(recipeId: recipeId) ? .green : .primary)
                             }
                         }
+                        .accessibilityLabel(recipeVM.isOffline(recipeId: recipeId) ? "Remove offline copy" : "Save recipe offline")
                         .disabled(recipeVM.isSavingOffline)
                     }
 
@@ -61,6 +67,17 @@ struct RecipeDetailView: View {
                         if !recipeVM.isLocalMode {
                             Button(action: { showAddToMealPlan = true }) {
                                 Label("Add to Meal Plan", systemImage: "calendar")
+                            }
+                        }
+                        if let recipe = recipeVM.selectedRecipe {
+                            Button {
+                                do { recipeToShare = try RecipePDFFile.create(for: recipe) }
+                                catch { recipeVM.errorMessage = "Could not prepare this recipe for sharing. Please try again." }
+                            } label: {
+                                Label("Share Recipe", systemImage: "square.and.arrow.up")
+                            }
+                            Button { recipeToPrint = recipe } label: {
+                                Label("Print Recipe", systemImage: "printer")
                             }
                         }
                         Button(action: { showEditSheet = true }) {
@@ -71,8 +88,20 @@ struct RecipeDetailView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
-                    }
+                    }.accessibilityLabel("Recipe actions")
                 }
+            }
+        }
+        .sheet(item: $recipeToShare) { file in
+            RecipeShareSheet(file: file) { error in
+                recipeToShare = nil
+                if let error { recipeVM.errorMessage = error }
+            }
+        }
+        .sheet(item: $recipeToPrint) { recipe in
+            RecipePrintSheet(recipe: recipe) { error in
+                recipeToPrint = nil
+                if let error { recipeVM.errorMessage = error }
             }
         }
         .sheet(isPresented: $showEditSheet) {
@@ -203,7 +232,7 @@ struct RecipeDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Hero Image
                 if let recipeId = recipe.id {
-                    heroImage(recipeId: recipeId)
+                    heroImage(recipeId: recipeId).id(recipeVM.imageRevision)
                         .padding(.bottom, 16)
                 }
 
@@ -370,11 +399,6 @@ struct RecipeDetailView: View {
                     .font(.title2)
                     .bold()
                 Spacer()
-                if !recipeVM.isLocalMode {
-                    Text("Long press to add")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -393,6 +417,14 @@ struct RecipeDetailView: View {
                         Text(ingredient.displayText)
                             .font(.body)
                         Spacer()
+                        if !recipeVM.isLocalMode {
+                            Button { addIngredient(ingredient) } label: {
+                                Image(systemName: "cart.badge.plus")
+                                    .frame(minWidth: 44, minHeight: 44)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Add \(ingredient.displayText) to shopping list")
+                        }
                     }
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)
@@ -404,6 +436,12 @@ struct RecipeDetailView: View {
                         }
                     )
                     .cornerRadius(8)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityActions {
+                        if !recipeVM.isLocalMode {
+                            Button("Add to shopping list") { addIngredient(ingredient) }
+                        }
+                    }
                     .onLongPressGesture(minimumDuration: 0.5, pressing: { pressing in
                         if pressing && !recipeVM.isLocalMode {
                             pressedIngredientIndex = index
@@ -422,15 +460,20 @@ struct RecipeDetailView: View {
                             longPressProgress = 0
                         }
                         pressedIngredientIndex = -1
-                        if let defaultListId = AppSettings.shared.defaultShoppingListId, !defaultListId.isEmpty {
-                            addIngredientToDefault(ingredient: ingredient, listId: defaultListId)
-                        } else {
-                            selectedIngredient = ingredient
-                            showShoppingListPicker = true
-                        }
+                        addIngredient(ingredient)
                     }
                 }
             }
+        }
+    }
+
+    func addIngredient(_ ingredient: RecipeIngredient) {
+        guard !recipeVM.isLocalMode else { return }
+        if let listID = AppSettings.shared.defaultShoppingListId, !listID.isEmpty {
+            addIngredientToDefault(ingredient: ingredient, listId: listID)
+        } else {
+            selectedIngredient = ingredient
+            showShoppingListPicker = true
         }
     }
 

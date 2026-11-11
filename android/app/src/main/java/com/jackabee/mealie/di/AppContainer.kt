@@ -41,6 +41,7 @@ class AppContainer(context: Context) {
     val keyValueStore = SecureKeyValueStore(SharedPrefsKeyValueStore(appContext), AndroidKeystoreSecretStore(appContext))
     val authStore = AuthStore(keyValueStore, json, client)
     val settings = AppSettings(keyValueStore)
+    val recipeImageVersions = com.jackabee.mealie.data.store.RecipeImageVersions(keyValueStore)
 
     val cache = CacheService(File(appContext.cacheDir, "mealie_cache"), json)
 

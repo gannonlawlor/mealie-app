@@ -116,6 +116,27 @@ fun EditRecipeDialog(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
 
+    var showDiscardConfirmation by remember { mutableStateOf(false) }
+    val hasUnsavedChanges = name != recipe.name.orEmpty() || description != recipe.description.orEmpty() ||
+        recipeYield != recipe.recipeYield.orEmpty() || prepTime != recipe.prepTime.orEmpty() ||
+        performTime != recipe.performTime.orEmpty() || totalTime != recipe.totalTime.orEmpty() ||
+        ingredientTexts.map { it.text } != recipe.recipeIngredient.orEmpty().map { it.displayText } ||
+        instructionTexts.map { it.text } != recipe.recipeInstructions.orEmpty().map { it.text.orEmpty() } ||
+        selectedCategoryIds.toSet() != recipe.recipeCategory.orEmpty().mapNotNull { it.id }.toSet() ||
+        selectedTagIds.toSet() != recipe.tags.orEmpty().mapNotNull { it.id }.toSet() || selectedImageBytes != null
+    fun requestDismiss() {
+        if (isSaving) return
+        if (hasUnsavedChanges) showDiscardConfirmation = true else onDismiss()
+    }
+    if (showDiscardConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDiscardConfirmation = false },
+            title = { Text("Discard unsaved changes?") },
+            confirmButton = { TextButton(onClick = onDismiss) { Text("Discard Changes") } },
+            dismissButton = { TextButton(onClick = { showDiscardConfirmation = false }) { Text("Keep Editing") } },
+        )
+    }
+
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
@@ -153,14 +174,7 @@ fun EditRecipeDialog(
                     performTime = performTime.ifEmpty { null },
                 )
 
-                var success = recipeViewModel.updateRecipe(recipe.slug ?: "", updated)
-
-                val imageBytes = selectedImageBytes
-                if (success && imageBytes != null) {
-                    val uploadSlug = recipeViewModel.uiState.value.selectedRecipe?.slug
-                        ?: recipe.slug ?: ""
-                    success = recipeViewModel.uploadImage(uploadSlug, imageBytes)
-                }
+                val success = recipeViewModel.saveRecipeEdits(recipe.slug.orEmpty(), updated, selectedImageBytes)
 
                 if (success) {
                     onDismiss()
@@ -172,7 +186,7 @@ fun EditRecipeDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { requestDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -182,7 +196,7 @@ fun EditRecipeDialog(
                         TopAppBar(
                             title = { Text("Edit Recipe") },
                             navigationIcon = {
-                                TextButton(onClick = onDismiss) {
+                                TextButton(onClick = { requestDismiss() }, enabled = !isSaving) {
                                     Text("Cancel")
                                 }
                             },

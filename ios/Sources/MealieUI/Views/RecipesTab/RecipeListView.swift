@@ -25,6 +25,10 @@ struct RecipeListView: View {
                 }
                 .padding(.top, 4)
             }
+            if recipeVM.hasPendingSharedImports {
+                Button("Retry Shared Imports") { Task { await recipeVM.processPendingImports() } }
+                    .disabled(recipeVM.isImporting)
+            }
             activeFilterChip
             recipeList
         }
@@ -55,11 +59,16 @@ struct RecipeListView: View {
                         Image(systemName: showFavoritesOnly ? "heart.fill" : "heart")
                             .foregroundStyle(showFavoritesOnly ? Color.accentColor : .primary)
                     }
+                    .accessibilityLabel(showFavoritesOnly ? "Show all recipes" : "Show favorites only")
+                    .accessibilityValue(showFavoritesOnly ? "Favorites filter on" : "Favorites filter off")
                     Button(action: { showImportSheet = true }) {
                         Image(systemName: "plus")
-                    }
+                    }.accessibilityLabel("Add recipe")
                 }
             }
+        }
+        .onChange(of: recipeVM.showDuplicateAlert) { _, show in
+            if show { showImportSheet = true }
         }
         .sheet(isPresented: $showImportSheet) {
             ImportRecipeView(recipeVM: recipeVM, isPresented: $showImportSheet)
@@ -210,7 +219,7 @@ struct RecipeListView: View {
                             recipe: recipe,
                             isLocalMode: recipeVM.isLocalMode,
                             isSavedOffline: !recipeVM.isLocalMode && recipeVM.isOffline(recipeId: recipe.id ?? "")
-                        )
+                        ).id("\(recipe.id ?? "")-\(recipeVM.imageRevision)")
                     }
                     .swipeActions(edge: .leading) {
                         if let slug = recipe.slug {
@@ -429,7 +438,7 @@ struct ImportRecipeView: View {
 
                         Button(action: {
                             Task {
-                                guard let recipe = await recipeVM.createLocalRecipe(name: newRecipeName) else { return }
+                                let recipe = recipeVM.makeLocalRecipeDraft(name: newRecipeName)
                                 createdRecipe = recipe
                                 showEditSheet = true
                             }
@@ -480,14 +489,12 @@ struct ImportRecipeView: View {
             .alert("Recipe Already Exists", isPresented: $recipeVM.showDuplicateAlert) {
                 Button("Update Existing") {
                     Task {
-                        await recipeVM.confirmImportUpdate()
-                        isPresented = false
+                        if await recipeVM.confirmImportUpdate() { isPresented = false }
                     }
                 }
                 Button("Import Anyway") {
                     Task {
-                        await recipeVM.confirmImportNew()
-                        isPresented = false
+                        if await recipeVM.confirmImportNew() { isPresented = false }
                     }
                 }
                 Button("Cancel", role: .cancel) {

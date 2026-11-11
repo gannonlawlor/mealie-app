@@ -5,6 +5,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.semantics.SemanticsActions
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.jackabee.mealie.data.model.Recipe
 import com.jackabee.mealie.ui.screens.recipes.RecipesPane
@@ -25,6 +27,84 @@ import org.robolectric.annotation.GraphicsMode
 class LaunchRegressionUiTest {
     @get:Rule val compose = createComposeRule()
     @get:Rule val tmp = TemporaryFolder()
+
+    @Test fun localRecipeOffersPrintInOverflowMenu() {
+        val env = ScreenshotEnv(tmp.root)
+        env.recipeViewModel.setLocalMode(true)
+        runBlocking { env.localStore.saveRecipe(Recipe(id = "print", slug = "print", name = "Print soup")) }
+        compose.setContent {
+            ScreenshotTheme {
+                com.jackabee.mealie.ui.screens.recipes.components.RecipeDetailContent(
+                    "print", env.recipeViewModel, env.shoppingViewModel, env.mealPlanViewModel,
+                    showBackButton = true, onBack = {}, onDeleted = {})
+            }
+        }
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Print Recipe").assertIsDisplayed()
+        compose.onNodeWithText("Share Recipe").assertIsDisplayed()
+    }
+
+    @Test fun printWithoutAnActivityReportsRecoverableError() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        var error: String? = null
+        com.jackabee.mealie.ui.screens.recipes.components.RecipePrinter.print(context, Recipe(name = "Soup"),
+            onReady = { fail("No activity should not open printing") }, onError = { error = it })
+        assertEquals("Printing is unavailable. Please try again.", error)
+    }
+
+    @Test fun ingredientHasVisibleAndAccessibleShoppingActions() {
+        val ingredient = com.jackabee.mealie.data.model.RecipeIngredient(note = "2 cups rice")
+        var added = 0
+        compose.setContent {
+            ScreenshotTheme {
+                com.jackabee.mealie.ui.screens.recipes.components.IngredientRow(ingredient, true, { added++ })
+            }
+        }
+        compose.onNodeWithContentDescription("Add 2 cups rice to shopping list").performClick()
+        assertEquals(1, added)
+        val actions = compose.onNodeWithText("2 cups rice").fetchSemanticsNode().config[SemanticsActions.CustomActions]
+        compose.runOnIdle { assertTrue(actions.single { it.label == "Add to shopping list" }.action()) }
+        assertEquals(2, added)
+    }
+
+    @Test fun openingNewRecipeEditorDoesNotPersistAnEmptyRecipe() {
+        val env = ScreenshotEnv(tmp.root)
+        env.recipeViewModel.setLocalMode(true)
+        var draft: Recipe? = null
+        val initialState = env.recipeViewModel.uiState.value
+        compose.setContent {
+            ScreenshotTheme {
+                com.jackabee.mealie.ui.screens.recipes.components.ImportRecipeSheet(
+                    env.recipeViewModel, initialState, {}, { draft = it })
+            }
+        }
+        compose.onNodeWithText("Create New Recipe").performClick()
+        compose.onNodeWithText("Recipe Name").performTextReplacement("Draft Soup")
+        compose.onNodeWithText("Create Recipe").performClick()
+        compose.waitForIdle()
+        assertNotNull(draft)
+        assertTrue(runBlocking { env.localStore.loadAllRecipes() }.isEmpty())
+    }
+
+    @Test fun cancelEditedRecipeRequiresExplicitDiscard() {
+        val env = ScreenshotEnv(tmp.root)
+        var dismissed = false
+        compose.setContent {
+            ScreenshotTheme {
+                EditRecipeDialog(Recipe(id = "one", name = "Soup"), env.recipeViewModel, { dismissed = true })
+            }
+        }
+        compose.onNodeWithText("Description").performTextReplacement("Keep this draft")
+        compose.onNodeWithText("Cancel").performClick()
+        compose.waitForIdle()
+        assertFalse(dismissed)
+        compose.onNodeWithText("Keep Editing").performClick()
+        compose.onNodeWithText("Keep this draft").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Discard Changes").performClick()
+        compose.waitForIdle()
+        assertTrue(dismissed)
+    }
 
     @Test fun saveWithoutIngredientEditsPreservesStructuredRecipeAndUnavailableTaxonomy() {
         val env = ScreenshotEnv(tmp.root)

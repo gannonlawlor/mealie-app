@@ -14,6 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddShoppingCart
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,7 +75,15 @@ fun IngredientRow(
                     )
                 }
             }
-            .pointerInput(longPressEnabled) {
+            .semantics(mergeDescendants = true) {
+                if (longPressEnabled) {
+                    customActions = listOf(CustomAccessibilityAction("Add to shopping list") {
+                        onLongPressComplete(ingredient)
+                        true
+                    })
+                }
+            }
+            .pointerInput(longPressEnabled, ingredient) {
                 if (longPressEnabled) {
                     detectTapGestures(
                         onPress = {
@@ -96,6 +111,12 @@ fun IngredientRow(
         Text(
             text = ingredient.displayText,
             style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
         )
+        if (longPressEnabled) {
+            IconButton(onClick = { onLongPressComplete(ingredient) }) {
+                Icon(Icons.Outlined.AddShoppingCart, contentDescription = "Add ${ingredient.displayText} to shopping list")
+            }
+        }
     }
 }

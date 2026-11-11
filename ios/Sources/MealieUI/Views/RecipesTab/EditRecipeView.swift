@@ -23,6 +23,18 @@ struct EditRecipeView: View {
     @State var selectedImageURL: URL? = nil
     @State var selectedPhoto: PhotosPickerItem? = nil
 
+    @State var showDiscardConfirmation = false
+
+    var hasUnsavedChanges: Bool {
+        name != (recipe.name ?? "") || description != (recipe.description ?? "") ||
+        recipeYield != (recipe.recipeYield ?? "") || prepTime != (recipe.prepTime ?? "") ||
+        performTime != (recipe.performTime ?? "") || totalTime != (recipe.totalTime ?? "") ||
+        ingredientTexts.map(\.text) != (recipe.recipeIngredient ?? []).map(\.displayText) ||
+        instructionTexts.map(\.text) != (recipe.recipeInstructions ?? []).map { $0.text ?? "" } ||
+        selectedCategoryIds != Set((recipe.recipeCategory ?? []).compactMap(\.id)) ||
+        selectedTagIds != Set((recipe.tags ?? []).compactMap(\.id)) || selectedImageData != nil
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -180,7 +192,10 @@ struct EditRecipeView: View {
             .navigationTitle("Edit Recipe")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isPresented = false }
+                    Button("Cancel") {
+                        if hasUnsavedChanges { showDiscardConfirmation = true }
+                        else { isPresented = false }
+                    }.disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -189,9 +204,12 @@ struct EditRecipeView: View {
                     .disabled(name.isEmpty || isSaving)
                 }
             }
-            .task {
-                populateFields()
-            }
+            .task { populateFields() }
+        }
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
+        .alert("Discard unsaved changes?", isPresented: $showDiscardConfirmation) {
+            Button("Discard Changes", role: .destructive) { isPresented = false }
+            Button("Keep Editing", role: .cancel) {}
         }
     }
 
@@ -266,13 +284,7 @@ struct EditRecipeView: View {
             extras: recipe.extras
         )
 
-        var success = await recipeVM.updateRecipe(slug: recipe.slug ?? "", data: updated)
-
-        // Upload image if user selected a new one
-        if success, let imageData = selectedImageData {
-            let uploadSlug = recipeVM.selectedRecipe?.slug ?? recipe.slug ?? ""
-            success = await recipeVM.uploadImage(slug: uploadSlug, imageData: imageData)
-        }
+        let success = await recipeVM.saveRecipeEdits(slug: recipe.slug ?? "", data: updated, imageData: selectedImageData)
 
         isSaving = false
         if success {

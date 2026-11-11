@@ -70,22 +70,21 @@ fun AppRoot(
     importEvents: StateFlow<Long>,
 ) {
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+    val sharedEvent by importEvents.collectAsStateWithLifecycle()
+    val shareScope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(sharedEvent) {
+        if (authState.isAuthenticated) shareScope.launch {
+            recipeViewModel.setLocalMode(!authState.isServerConnected)
+            recipeViewModel.processPendingImports()
+        }
+    }
 
-    // Mirrors iOS ContentView .task / .onChange(of: isServerConnected).
-    // Also drains share URLs queued while signed out: remove-before-import so a
-    // failed import shows the normal error banner instead of re-queuing in a loop.
-    // Keyed on both flags so local-mode entry (authenticated flips, connected
-    // stays false) drains from this one site just like server login does.
+    // Restore mode before draining durable share imports.
     LaunchedEffect(authState.isServerConnected, authState.isAuthenticated) {
         val connected = authState.isServerConnected
         recipeViewModel.setLocalMode(!connected)
         if (authState.isAuthenticated) {
-            val pending = container.authStore.pendingImportURLs()
-            for (url in pending) {
-                container.authStore.removePendingImportURL(url)
-                recipeViewModel.updateImportURL(url)
-                recipeViewModel.importFromURL()
-            }
+            recipeViewModel.processPendingImports()
         }
         if (connected) {
             authViewModel.loadCurrentUser()

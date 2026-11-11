@@ -9,32 +9,24 @@ public class OfflineRecipeStore: @unchecked Sendable {
     private let imagesDirectory = "images"
     private let idsKey = "mealie_offline_recipe_ids"
 
-    private init() {}
+    private let defaults: UserDefaults
+    private let directory: URL?
+    init(defaults: UserDefaults = .standard, directory: URL? = nil) {
+        self.defaults = defaults; self.directory = directory
+    }
 
     // MARK: - Save / Load
 
-    public func saveRecipe(_ recipe: Recipe, imageData: Data?) {
-        guard let dir = storeDirectory(), let id = recipe.id else { return }
-        let fileURL = dir.appendingPathComponent("recipe_\(id).json")
-        do {
-            let data = try JSONEncoder().encode(recipe)
-            try data.write(to: fileURL)
-        } catch {
-            logger.error("Failed to save offline recipe \(id): \(error)")
-            return
-        }
-
-        if let imageData = imageData {
+    public func saveRecipe(_ recipe: Recipe, imageData: Data?) throws {
+        guard let dir = storeDirectory(), let id = recipe.id else { throw RecipeStorageError.unavailable }
+        let data = try JSONEncoder().encode(recipe)
+        // Publish the saved marker only after all requested content is durable.
+        if let imageData {
             let imgDir = dir.appendingPathComponent(imagesDirectory)
-            try? FileManager.default.createDirectory(at: imgDir, withIntermediateDirectories: true)
-            let imgPath = imgDir.appendingPathComponent("\(id).jpg")
-            do {
-                try imageData.write(to: imgPath)
-            } catch {
-                logger.error("Failed to save offline image for \(id): \(error)")
-            }
+            try FileManager.default.createDirectory(at: imgDir, withIntermediateDirectories: true)
+            try imageData.write(to: imgDir.appendingPathComponent("\(id).jpg"), options: .atomic)
         }
-
+        try data.write(to: dir.appendingPathComponent("recipe_\(id).json"), options: .atomic)
         var ids = savedRecipeIds()
         ids.insert(id)
         saveSavedIds(ids)
@@ -86,6 +78,13 @@ public class OfflineRecipeStore: @unchecked Sendable {
 
     // MARK: - Image
 
+    public func replaceImageIfSaved(id: String, data: Data) throws {
+        guard isRecipeSavedOffline(id: id), let dir = storeDirectory() else { return }
+        let images = dir.appendingPathComponent(imagesDirectory)
+        try FileManager.default.createDirectory(at: images, withIntermediateDirectories: true)
+        try data.write(to: images.appendingPathComponent("\(id).jpg"), options: .atomic)
+    }
+
     public func imageFilePath(recipeId: String) -> String? {
         guard let dir = storeDirectory() else { return nil }
         let filePath = dir.appendingPathComponent(imagesDirectory).appendingPathComponent("\(recipeId).jpg")
@@ -102,8 +101,8 @@ public class OfflineRecipeStore: @unchecked Sendable {
     }
 
     public func savedRecipeIds() -> Set<String> {
-        let array = (UserDefaults.standard.object(forKey: idsKey) as? [String]) ?? []
-        return Set(array)
+        let array = (defaults.object(forKey: idsKey) as? [String]) ?? []
+        return Set(array.filter { loadRecipe(id: $0) != nil })
     }
 
     // MARK: - Clear
@@ -111,16 +110,20 @@ public class OfflineRecipeStore: @unchecked Sendable {
     public func clearAll() {
         guard let dir = storeDirectory() else { return }
         try? FileManager.default.removeItem(at: dir)
-        UserDefaults.standard.removeObject(forKey: idsKey)
+        defaults.removeObject(forKey: idsKey)
     }
 
     // MARK: - Private
 
     private func saveSavedIds(_ ids: Set<String>) {
-        UserDefaults.standard.set(Array(ids), forKey: idsKey)
+        defaults.set(Array(ids), forKey: idsKey)
     }
 
     private func storeDirectory() -> URL? {
+        if let directory {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        }
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }

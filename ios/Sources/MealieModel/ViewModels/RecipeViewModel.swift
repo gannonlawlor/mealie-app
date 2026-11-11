@@ -42,19 +42,26 @@ private let logger = Log(category: "Recipes")
 
     private let localStore: LocalRecipeStore
 
+    private let importQueue: SharedImportQueue?
+    private let parseRecipe: (String) async throws -> Recipe
+    private let offlineStore: OfflineRecipeStore
     private let api: MealieAPI
     private let syncService: RecipeSyncService
 
-    public init() { localStore = .shared; api = .shared; syncService = .shared }
-    init(localStore: LocalRecipeStore, api: MealieAPI = .shared, syncService: RecipeSyncService = .shared) {
-        self.localStore = localStore; self.api = api; self.syncService = syncService
+    public init() { localStore = .shared; api = .shared; syncService = .shared; offlineStore = .shared; importQueue = .shared; parseRecipe = { try await RecipeURLParser.shared.parseRecipe(from: $0) } }
+    init(localStore: LocalRecipeStore, api: MealieAPI = .shared, syncService: RecipeSyncService = .shared, offlineStore: OfflineRecipeStore = .shared,
+         importQueue: SharedImportQueue? = .shared,
+         parseRecipe: @escaping (String) async throws -> Recipe = { try await RecipeURLParser.shared.parseRecipe(from: $0) }) {
+        self.localStore = localStore; self.api = api; self.syncService = syncService; self.offlineStore = offlineStore; self.importQueue = importQueue; self.parseRecipe = parseRecipe
     }
 
     public func refreshRecipes() async {
         guard !isLocalMode else { await loadRecipes(reset: true); return }
         let success = await syncService.syncAll()
         await loadRecipes(reset: true)
-        errorMessage = success ? "" : "Failed to refresh recipes. Showing saved recipes."
+        errorMessage = success ? "" : syncService.pendingRecipeCount > 0
+            ? "Some recipes could not be downloaded. Retry Recipe Sync in Settings."
+            : "Failed to refresh recipes. Showing saved recipes."
         errorDetail = ""
         if success, let slug = selectedRecipe?.slug {
             selectedRecipe = syncService.loadRecipeBySlug(slug: slug)
@@ -228,6 +235,9 @@ private let logger = Log(category: "Recipes")
             return
         }
 
+        selectedRecipe = nil
+        errorMessage = ""
+        errorDetail = ""
         // Read from sync store if available
         if let synced = syncService.loadRecipeBySlug(slug: slug) {
             selectedRecipe = synced
@@ -243,7 +253,12 @@ private let logger = Log(category: "Recipes")
             syncService.updateRecipe(recipe)
             isLoadingDetail = false
         } catch {
-            errorMessage = "Failed to load recipe."
+            if let saved = offlineStore.loadRecipeBySlug(slug: slug) {
+                selectedRecipe = saved
+                errorMessage = "Showing the saved offline copy."
+            } else {
+                errorMessage = "Failed to load recipe."
+            }
             errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to load recipe detail: \(error)")
             isLoadingDetail = false
@@ -332,15 +347,42 @@ private let logger = Log(category: "Recipes")
         }
     }
 
+    public var hasPendingSharedImports = false
+    private var drainingShares = false
+    private var queuedDuplicateURL: String?
+
+    public func processPendingImports() async {
+        guard let queue = importQueue, !drainingShares, !isImporting, pendingImportRecipe == nil else { return }
+        drainingShares = true
+        hasPendingSharedImports = !queue.pendingURLs().isEmpty
+        defer {
+            drainingShares = false
+            hasPendingSharedImports = !queue.pendingURLs().isEmpty
+        }
+        while let url = queue.pendingURLs().first {
+            importURL = url
+            let saved = await importFromURL()
+            if pendingImportRecipe != nil {
+                queuedDuplicateURL = url
+                break
+            }
+            guard saved else {
+                errorMessage = "A shared link could not be imported. Retry Shared Imports to try again."
+                break
+            }
+            queue.remove(url)
+        }
+    }
+
     @discardableResult
     public func importFromURL() async -> Bool {
-        guard !importURL.isEmpty else { return false }
+        guard !importURL.isEmpty, !isImporting, pendingImportRecipe == nil else { return false }
         isImporting = true
         importMessage = ""
 
         if isLocalMode {
             do {
-                let recipe = try await RecipeURLParser.shared.parseRecipe(from: importURL)
+                let recipe = try await parseRecipe(importURL)
 
                 // Check for duplicates
                 if let existing = localStore.findRecipeByOrgURL(importURL) {
@@ -434,18 +476,19 @@ private let logger = Log(category: "Recipes")
         return fetched != nil
     }
 
-    public func confirmImportNew() async {
-        guard let recipe = pendingImportRecipe else { return }
+    @discardableResult public func confirmImportNew() async -> Bool {
+        guard let recipe = pendingImportRecipe else { return false }
         do { try localStore.saveRecipe(recipe) }
-        catch { reportStorageFailure(error); importMessage = errorMessage; return }
+        catch { reportStorageFailure(error); importMessage = errorMessage; showDuplicateAlert = true; return false }
         importMessage = "Recipe imported successfully!"
         importURL = ""
         clearDuplicateState()
         await loadRecipes(reset: true)
+        return true
     }
 
-    public func confirmImportUpdate() async {
-        guard let pending = pendingImportRecipe, let existing = duplicateRecipe else { return }
+    @discardableResult public func confirmImportUpdate() async -> Bool {
+        guard let pending = pendingImportRecipe, let existing = duplicateRecipe else { return false }
         let now = ISO8601DateFormatter().string(from: Date())
         let updated = Recipe(
             id: existing.id, slug: existing.slug,
@@ -460,14 +503,18 @@ private let logger = Log(category: "Recipes")
             orgURL: pending.orgURL, extras: pending.extras
         )
         do { try localStore.saveRecipe(updated) }
-        catch { reportStorageFailure(error); importMessage = errorMessage; return }
+        catch { reportStorageFailure(error); importMessage = errorMessage; showDuplicateAlert = true; return false }
         importMessage = "Recipe updated successfully!"
         importURL = ""
         clearDuplicateState()
         await loadRecipes(reset: true)
+        return true
     }
 
     public func clearDuplicateState() {
+        if let queuedDuplicateURL { importQueue?.remove(queuedDuplicateURL) }
+        hasPendingSharedImports = !(importQueue?.pendingURLs().isEmpty ?? true)
+        queuedDuplicateURL = nil
         duplicateRecipe = nil
         pendingImportRecipe = nil
         showDuplicateAlert = false
@@ -588,7 +635,7 @@ private let logger = Log(category: "Recipes")
     // MARK: - Offline
 
     public func loadOfflineIds() {
-        offlineRecipeIds = OfflineRecipeStore.shared.savedRecipeIds()
+        offlineRecipeIds = offlineStore.savedRecipeIds()
     }
 
     public func isOffline(recipeId: String) -> Bool {
@@ -606,19 +653,21 @@ private let logger = Log(category: "Recipes")
                     imageData = try? await URLSession.shared.data(from: url).0
                 }
             }
-            OfflineRecipeStore.shared.saveRecipe(recipe, imageData: imageData)
+            try offlineStore.saveRecipe(recipe, imageData: imageData)
             if let id = recipe.id {
                 offlineRecipeIds.insert(id)
             }
             isSavingOffline = false
         } catch {
+            errorMessage = "Could not save recipe offline. Please try again."
+            errorDetail = AppEnvironment.errorDetail(error)
             logger.error("Failed to save recipe offline: \(error)")
             isSavingOffline = false
         }
     }
 
     public func removeRecipeOffline(recipeId: String) {
-        OfflineRecipeStore.shared.removeRecipe(id: recipeId)
+        offlineStore.removeRecipe(id: recipeId)
         offlineRecipeIds.remove(recipeId)
     }
 
@@ -630,6 +679,19 @@ private let logger = Log(category: "Recipes")
         }
     }
 
+    public func saveRecipeEdits(slug: String, data: Recipe, imageData: Data?) async -> Bool {
+        guard await updateRecipe(slug: slug, data: data) else { return false }
+        if let imageData, !(await uploadImage(slug: selectedRecipe?.slug ?? slug, imageData: imageData)) {
+            errorMessage = "Recipe saved, but the image could not be saved. Please try again."
+            return false
+        }
+        errorMessage = ""
+        errorDetail = ""
+        return true
+    }
+
+    public var imageRevision = 0
+
     // MARK: - Image Upload
 
     public func uploadImage(slug: String, imageData: Data) async -> Bool {
@@ -637,7 +699,8 @@ private let logger = Log(category: "Recipes")
             guard let recipe = selectedRecipe else { return false }
             do {
                 try localStore.saveRecipeImage(imageData, recipe: recipe)
-                selectedRecipe = localStore.loadRecipe(slug: slug)
+                selectedRecipe = localStore.loadRecipe(slug: localStore.navigationIdentifier(recipe) ?? slug)
+                imageRevision += 1
                 await loadRecipes(reset: true)
                 return true
             } catch { reportStorageFailure(error); return false }
@@ -648,6 +711,13 @@ private let logger = Log(category: "Recipes")
             // Clear cached images so fresh ones are loaded
             if let recipeId = selectedRecipe?.id {
                 ImageCacheService.shared.removeCachedImages(recipeId: recipeId)
+                for size in ["tiny-original.webp", "min-original.webp", "original.webp"] {
+                    if let url = URL(string: api.recipeImageURL(recipeId: recipeId, imageType: size)) {
+                        URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
+                    }
+                }
+                try offlineStore.replaceImageIfSaved(id: recipeId, data: imageData)
+                imageRevision += 1
             }
             return true
         } catch {
@@ -658,7 +728,7 @@ private let logger = Log(category: "Recipes")
         }
     }
 
-    public func createLocalRecipe(name: String) async -> Recipe? {
+    public func makeLocalRecipeDraft(name: String) -> Recipe {
         let id = UUID().uuidString
         let slug = localStore.generateSlug(from: name)
         let now = ISO8601DateFormatter().string(from: Date())
@@ -671,6 +741,11 @@ private let logger = Log(category: "Recipes")
             settings: nil, dateAdded: now, dateUpdated: now,
             createdAt: now, updatedAt: now, orgURL: nil, extras: nil
         )
+        return recipe
+    }
+
+    public func createLocalRecipe(name: String) async -> Recipe? {
+        let recipe = makeLocalRecipeDraft(name: name)
         do { try localStore.saveRecipe(recipe) }
         catch { reportStorageFailure(error); importMessage = errorMessage; return nil }
         await loadRecipes(reset: true)

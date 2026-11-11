@@ -167,7 +167,7 @@ struct SettingsView: View {
                     }
 
                     HStack {
-                        Text("Recipes Synced")
+                        Text("Recipes Cached")
                         Spacer()
                         if RecipeSyncService.shared.isSyncing {
                             HStack(spacing: 6) {
@@ -176,10 +176,18 @@ struct SettingsView: View {
                                 ProgressView()
                             }
                         } else {
-                            Text("\(RecipeSyncService.shared.syncedRecipeCount)")
+                            Text("\(RecipeSyncService.shared.syncedRecipeCount) of \(RecipeSyncService.shared.totalRecipeCount)")
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    if RecipeSyncService.shared.pendingRecipeCount > 0 {
+                        Text("\(RecipeSyncService.shared.pendingRecipeCount) recipes need downloading. Some offline content may be missing or out of date.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Button("Retry Recipe Sync") {
+                        Task { await RecipeSyncService.shared.syncAll() }
+                    }
+                    .disabled(RecipeSyncService.shared.isSyncing)
                 }
             }
 

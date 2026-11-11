@@ -9,8 +9,6 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.lifecycleScope
-import com.jackabee.mealie.data.auth.AppMode
 import com.jackabee.mealie.di.AppContainer
 import com.jackabee.mealie.ui.navigation.AppRoot
 import com.jackabee.mealie.ui.screens.common.ThemeController
@@ -20,7 +18,6 @@ import com.jackabee.mealie.ui.viewmodel.MealPlanViewModel
 import com.jackabee.mealie.ui.viewmodel.RecipeViewModel
 import com.jackabee.mealie.ui.viewmodel.ShoppingViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -70,14 +67,7 @@ class MainActivity : ComponentActivity() {
         handleImportIntent(intent)
     }
 
-    /**
-     * Handles ACTION_SEND (shared text containing a recipe URL) and ACTION_VIEW
-     * (opened http/https link) — the Android counterpart of the iOS `onOpenURL`
-     * / share-extension flow. Imports immediately when a session is usable
-     * (local mode or restored server session); otherwise queues the URL on
-     * AuthStore for the AppRoot drain after authentication, with no failure
-     * banner — the recipes screen stays silent until the drain runs.
-     */
+    /** Persist every shared link before the authenticated UI starts processing it. */
     private fun handleImportIntent(intent: Intent?) {
         intent ?: return
         val url = when (intent.action) {
@@ -92,21 +82,7 @@ class MainActivity : ComponentActivity() {
         }
         if (url.isNullOrEmpty()) return
 
-        val authStore = container.authStore
-        if (authStore.savedAppMode == AppMode.LOCAL) {
-            recipeViewModel.setLocalMode(true)
-            recipeViewModel.updateImportURL(url)
-            lifecycleScope.launch { recipeViewModel.importFromURL() }
-            importEvents.value += 1
-            return
-        }
-        if (authStore.restoreSession()) {
-            recipeViewModel.updateImportURL(url)
-            lifecycleScope.launch { recipeViewModel.importFromURL() }
-            importEvents.value += 1
-            return
-        }
-        authStore.queuePendingImportURL(url)
+        container.authStore.queuePendingImportURL(url)
         importEvents.value += 1
     }
 

@@ -17,6 +17,10 @@ import com.jackabee.mealie.data.store.CacheService
 import com.jackabee.mealie.data.store.LocalRecipeStore
 import com.jackabee.mealie.data.store.OfflineRecipeStore
 import com.jackabee.mealie.data.store.RecipeSyncService
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -38,6 +42,108 @@ class RecipeViewModelTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
+    @Test fun savedOfflineRecipeRescuesMissingSyncAfterRestart() = runTest {
+        val root = tmp.newFolder()
+        val env = Env(root, mainRule)
+        env.offlineStore.saveRecipe(Recipe(id = "saved", slug = "soup", name = "Offline soup"), null)
+        val reopened = OfflineRecipeStore(File(root, "files"), env.kv, MealieJson)
+        assertNotNull(reopened.loadRecipeBySlug("soup"))
+        env.api.getRecipeHandler = { throw java.io.IOException("offline") }
+        env.vm.loadRecipeDetail("soup")
+        assertEquals("saved", env.vm.uiState.value.selectedRecipe?.id)
+        assertFalse(env.vm.uiState.value.isLoadingDetail)
+    }
+
+    @Test fun offlineWriteFailureDoesNotClaimSaved() = runTest {
+        val root = tmp.newFolder()
+        val env = Env(root, mainRule)
+        File(root, "files").mkdirs()
+        File(root, "files/mealie_offline").writeText("blocks directory")
+        env.api.getRecipeHandler = { Recipe(id = "saved", slug = "soup") }
+        env.vm.saveRecipeOffline("soup")
+        assertFalse(env.vm.uiState.value.offlineRecipeIds.contains("saved"))
+        assertTrue(env.vm.uiState.value.errorMessage.isNotEmpty())
+    }
+
+    @Test fun partialSyncCountsOnlyReadableDetailsAndRetriesMissingFiles() = runTest {
+        val root = tmp.newFolder()
+        val env = Env(root, mainRule)
+        env.api.getRecipesHandler = { _, _, _, _, _ -> RecipePaginatedResponse(items = listOf(
+            RecipeSummary(id = "a", slug = "a", dateUpdated = "1"),
+            RecipeSummary(id = "b", slug = "b", dateUpdated = "1"))) }
+        env.api.getRecipeHandler = { slug ->
+            if (slug == "b") throw java.io.IOException("detail failed")
+            Recipe(id = slug, slug = slug, dateUpdated = "1")
+        }
+        assertFalse(env.syncService.syncAll())
+        assertEquals(1, env.syncService.syncedRecipeCount)
+        assertEquals(2, env.syncService.totalRecipeCount)
+        assertEquals(1, env.syncService.pendingRecipeCount)
+        assertNull(env.syncService.lastSyncDate)
+        env.api.getRecipeHandler = { Recipe(id = it, slug = it, dateUpdated = "1") }
+        assertTrue(env.syncService.syncAll())
+        assertEquals(2, env.syncService.syncedRecipeCount)
+        assertEquals(0, env.syncService.pendingRecipeCount)
+        File(root, "files/mealie_recipe_sync/recipe_a.json").writeText("corrupt")
+        assertTrue(env.syncService.syncAll())
+        assertNotNull(env.syncService.loadRecipe("a"))
+    }
+
+    @Test fun sharedLinksSurviveFailureAndPauseAtDuplicateUntilSaved() = runTest {
+        val env = Env(tmp.newFolder(), mainRule)
+        env.vm.setLocalMode(true)
+        env.queue.queuePendingImportURL("https://test.invalid/one")
+        env.queue.queuePendingImportURL("https://test.invalid/two")
+        env.parser.handler = { throw java.io.IOException("offline") }
+        env.vm.processPendingImports()
+        assertEquals(2, env.queue.pendingImportURLs().size)
+        env.localStore.saveRecipe(Recipe(id = "existing", name = "Soup", orgURL = "https://test.invalid/one"))
+        env.parser.handler = { Recipe(id = "new", name = "Soup", orgURL = it) }
+        env.vm.processPendingImports()
+        assertEquals("https://test.invalid/one", env.vm.uiState.value.pendingImportRecipe?.orgURL)
+        assertEquals(2, env.queue.pendingImportURLs().size)
+        env.dao.writeFailure = java.io.IOException("disk full")
+        assertFalse(env.vm.confirmImportNew())
+        assertEquals(2, env.queue.pendingImportURLs().size)
+        env.dao.writeFailure = null
+        assertTrue(env.vm.confirmImportNew())
+        advanceUntilIdle()
+        assertEquals(listOf("https://test.invalid/two"), env.queue.pendingImportURLs())
+    }
+
+    @Test fun imageFailureKeepsSavedEditsAndRetryInvalidatesPersistentCacheKeys() = runTest {
+        val env = Env(tmp.newFolder(), mainRule)
+        val recipe = Recipe(id = "photo", slug = "photo", name = "New name")
+        env.offlineStore.saveRecipe(recipe, byteArrayOf(1))
+        env.api.uploadRecipeImageHandler = { _, _ -> throw java.io.IOException("image failed") }
+        assertFalse(env.vm.saveRecipeEdits("photo", recipe, byteArrayOf(2)))
+        assertEquals("New name", env.vm.uiState.value.selectedRecipe?.name)
+        assertTrue(env.vm.uiState.value.errorMessage.startsWith("Recipe saved, but"))
+        assertEquals("", env.versions.version("photo"))
+        env.api.uploadRecipeImageHandler = { _, _ -> }
+        assertTrue(env.vm.saveRecipeEdits("photo", recipe, byteArrayOf(2)))
+        assertTrue(env.versions.version("photo").isNotEmpty())
+        assertEquals(env.versions.version("photo"), com.jackabee.mealie.data.store.RecipeImageVersions(env.kv).version("photo"))
+        org.junit.Assert.assertArrayEquals(byteArrayOf(2), File(env.offlineStore.imageFilePath("photo")!!).readBytes())
+    }
+
+    @Test fun interruptedShareRemainsDurableAndCanRetryAfterRestart() = runTest {
+        val env = Env(tmp.newFolder(), mainRule)
+        env.vm.setLocalMode(true)
+        env.queue.queuePendingImportURL("https://test.invalid/one")
+        env.parser.handler = { awaitCancellation() }
+        val drain = launch { env.vm.processPendingImports() }
+        runCurrent()
+        drain.cancelAndJoin()
+        val reopened = com.jackabee.mealie.data.auth.AuthStore(env.kv, MealieJson, env.api)
+        assertEquals(listOf("https://test.invalid/one"), reopened.pendingImportURLs())
+        assertFalse(env.vm.uiState.value.isImporting)
+        env.parser.handler = { Recipe(id = "saved", name = "One", orgURL = it) }
+        env.vm.processPendingImports()
+        assertTrue(reopened.pendingImportURLs().isEmpty())
+        assertEquals("saved", env.localStore.loadAllRecipes().single().id)
+    }
+
     private class Env(root: File, rule: MainDispatcherRule) {
         val kv = FakeKeyValueStore()
         val dao = FakeLocalRecipeDao()
@@ -47,7 +153,9 @@ class RecipeViewModelTest {
         val offlineStore = OfflineRecipeStore(File(root, "files"), kv, MealieJson)
         val cache = CacheService(File(root, "cache"), MealieJson)
         val parser = FakeRecipeParser()
-        val vm = RecipeViewModel(api, localStore, syncService, offlineStore, cache, parser, rule.dispatcher)
+        val queue = com.jackabee.mealie.data.auth.AuthStore(kv, MealieJson, api)
+        val versions = com.jackabee.mealie.data.store.RecipeImageVersions(kv)
+        val vm = RecipeViewModel(api, localStore, syncService, offlineStore, cache, parser, rule.dispatcher, queue, versions)
     }
 
     private fun env() = Env(tmp.root, mainRule)

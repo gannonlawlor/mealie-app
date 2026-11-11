@@ -104,10 +104,8 @@ public struct ContentView: View {
                 recipeURL = url.absoluteString
             }
             guard !recipeURL.isEmpty else { return }
-            recipeVM.importURL = recipeURL
-            Task {
-                await recipeVM.importFromURL()
-            }
+            SharedImportQueue.shared?.enqueue(recipeURL)
+            Task { await processShareImports() }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
@@ -160,26 +158,7 @@ public struct ContentView: View {
         }
 
         selectedTab = .recipes
-        var failed: [String] = []
-        for urlString in pending {
-            recipeVM.importURL = urlString
-            if await recipeVM.importFromURL() {
-                queue.remove(urlString)
-                print("[ShareImport] imported queued link: \(urlString)")
-            } else {
-                failed.append(urlString)
-                print("[ShareImport] import failed, keeping for retry: \(urlString)")
-            }
-            // A duplicate needs the user's answer before importing anything else.
-            if recipeVM.showDuplicateAlert { break }
-        }
-
-        if !failed.isEmpty {
-            recipeVM.errorMessage = failed.count == 1
-                ? "A shared link couldn't be imported. It will be retried next time you open Mealie."
-                : "\(failed.count) shared links couldn't be imported. They will be retried next time you open Mealie."
-            recipeVM.errorDetail = failed.joined(separator: "\n")
-        }
+        await recipeVM.processPendingImports()
     }
 
     var mainTabView: some View {

@@ -56,10 +56,16 @@ class RecipeSyncService(
     val isSyncing: StateFlow<Boolean> = _isSyncing
 
     val syncedRecipeCount: Int
-        get() = syncedIds().size
+        get() = syncedIds().count { loadRecipe(it) != null }
 
     val isSynced: Boolean
-        get() = kv.contains(lastSyncKey)
+        get() = File(dir, summaryIndexFile).exists()
+
+    val totalRecipeCount: Int get() = loadSummaryIndex().size
+    val pendingRecipeCount: Int get() {
+        val pending = kv.getString("mealie_sync_pending_ids")?.let { json.decodeFromString(idsSerializer, it) }.orEmpty()
+        return loadSummaryIndex().count { it.id == null || it.id in pending || loadRecipe(it.id) == null }
+    }
 
     /** Epoch millis of the last completed sync, or null. */
     val lastSyncDate: Long?
@@ -92,7 +98,7 @@ class RecipeSyncService(
                 val toFetch = allSummaries.mapNotNull { summary ->
                     val id = summary.id ?: return@mapNotNull null
                     val slug = summary.slug ?: return@mapNotNull null
-                    if (localDates[id] != null && localDates[id] == (summary.dateUpdated ?: "")) {
+                    if (localDates[id] != null && localDates[id] == (summary.dateUpdated ?: "") && loadRecipe(id) != null) {
                         null // already up to date
                     } else {
                         id to slug
@@ -101,6 +107,7 @@ class RecipeSyncService(
 
                 // 3. Batch-fetch full details, 5 concurrent
                 val updatedDates = localDates.toMutableMap()
+                val failedIds = mutableSetOf<String>()
                 for (batch in toFetch.chunked(batchSize)) {
                     val results = coroutineScope {
                         batch.map { (id, slug) ->
@@ -117,9 +124,11 @@ class RecipeSyncService(
                         }.awaitAll()
                     }
                     for ((id, recipe) in results) {
-                        if (recipe != null) {
-                            saveRecipeFile(recipe)
-                            updatedDates[id] = recipe.dateUpdated ?: recipe.updatedAt ?: ""
+                        if (recipe != null && recipe.id == id && saveRecipeFile(recipe)) {
+                            updatedDates[id] = allSummaries.firstOrNull { it.id == id }?.dateUpdated ?: ""
+                        } else {
+                            failedIds += id
+                            updatedDates.remove(id)
                         }
                     }
                 }
@@ -132,12 +141,16 @@ class RecipeSyncService(
                 }
 
                 // 5. Update tracking and summary index
-                saveSyncedIds(serverIds)
+                val cachedIds = serverIds.filter { loadRecipe(it) != null }.toSet()
+                failedIds += serverIds - cachedIds
+                saveSyncedIds(cachedIds)
                 saveDateIndex(updatedDates)
-                saveSummaryIndex(allSummaries)
-                kv.putLong(lastSyncKey, System.currentTimeMillis())
+                kv.putString("mealie_sync_pending_ids", json.encodeToString(idsSerializer, failedIds))
+                check(saveSummaryIndex(allSummaries)) { "Could not save recipe index" }
+                val complete = failedIds.isEmpty() && cachedIds.size == allSummaries.size
+                if (complete) kv.putLong(lastSyncKey, System.currentTimeMillis())
+                complete
             }
-            true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -182,7 +195,7 @@ class RecipeSyncService(
     // MARK: Targeted Updates (after writes)
 
     fun updateRecipe(recipe: Recipe) {
-        saveRecipeFile(recipe)
+        if (!saveRecipeFile(recipe)) return
 
         // Update summary index
         val summaries = loadSummaryIndex().toMutableList()
@@ -232,18 +245,21 @@ class RecipeSyncService(
         kv.remove(idsKey)
         kv.remove(lastSyncKey)
         kv.remove(dateIndexKey)
+        kv.remove("mealie_sync_pending_ids")
         _isSyncing.value = false
     }
 
     // MARK: Private Storage
 
-    private fun saveRecipeFile(recipe: Recipe) {
-        val id = recipe.id ?: return
-        try {
+    private fun saveRecipeFile(recipe: Recipe): Boolean {
+        val id = recipe.id ?: return false
+        return try {
             dir.mkdirs()
-            File(dir, "recipe_$id.json").writeText(json.encodeToString(Recipe.serializer(), recipe))
+            atomicWrite(File(dir, "recipe_$id.json"), json.encodeToString(Recipe.serializer(), recipe))
+            true
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to save synced recipe $id: $e", e)
+            false
         }
     }
 
@@ -251,13 +267,24 @@ class RecipeSyncService(
         File(dir, "recipe_$id.json").delete()
     }
 
-    private fun saveSummaryIndex(summaries: List<RecipeSummary>) {
-        try {
+    private fun saveSummaryIndex(summaries: List<RecipeSummary>): Boolean {
+        return try {
             dir.mkdirs()
-            File(dir, summaryIndexFile).writeText(json.encodeToString(summarySerializer, summaries))
+            atomicWrite(File(dir, summaryIndexFile), json.encodeToString(summarySerializer, summaries))
+            true
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to save summary index: $e", e)
+            false
         }
+    }
+
+    private fun atomicWrite(target: File, text: String) {
+        val temporary = File.createTempFile("sync-", ".tmp", dir)
+        try {
+            temporary.writeText(text)
+            java.nio.file.Files.move(temporary.toPath(), target.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally { temporary.delete() }
     }
 
     // MARK: ID Tracking

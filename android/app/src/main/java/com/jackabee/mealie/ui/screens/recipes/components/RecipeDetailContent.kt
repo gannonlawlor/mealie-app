@@ -22,6 +22,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.Share
+import android.content.Intent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
@@ -111,6 +117,20 @@ fun RecipeDetailContent(
     // slug loads; the edit flow may legitimately change the slug).
     val recipe = recipeState.selectedRecipe
 
+    var preparingPrint by remember { mutableStateOf(false) }
+    var preparingShare by remember { mutableStateOf(false) }
+    var shareError by remember { mutableStateOf<String?>(null) }
+    if (shareError != null) {
+        androidx.compose.material3.AlertDialog(onDismissRequest = { shareError = null },
+            title = { Text("Could not share recipe") }, text = { Text(shareError.orEmpty()) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { shareError = null }) { Text("OK") } })
+    }
+    var printError by remember { mutableStateOf<String?>(null) }
+    if (printError != null) {
+        androidx.compose.material3.AlertDialog(onDismissRequest = { printError = null },
+            title = { Text("Could not print recipe") }, text = { Text(printError.orEmpty()) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { printError = null }) { Text("OK") } })
+    }
     var showDeleteAlert by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showAddToMealPlan by remember { mutableStateOf(false) }
@@ -192,7 +212,7 @@ fun RecipeDetailContent(
                     }) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
                             tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface,
                         )
                     }
@@ -238,6 +258,41 @@ fun RecipeDetailContent(
                                     },
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text(if (preparingShare) "Preparing Recipe…" else "Share Recipe") },
+                                leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) },
+                                enabled = recipe != null && !preparingShare,
+                                onClick = {
+                                    overflowExpanded = false
+                                    recipe?.let { loaded ->
+                                        preparingShare = true
+                                        scope.launch {
+                                            try {
+                                                val intent = withContext(Dispatchers.IO) { RecipeSharer.prepare(context, loaded) }
+                                                context.startActivity(Intent.createChooser(intent, "Share Recipe"))
+                                            } catch (cancelled: CancellationException) { throw cancelled }
+                                            catch (error: Exception) {
+                                                com.jackabee.mealie.ui.viewmodel.AppLog.w("RecipeSharer", "Could not share recipe PDF", error)
+                                                shareError = "Could not prepare this recipe for sharing. Please try again."
+                                            } finally { preparingShare = false }
+                                        }
+                                    }
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (preparingPrint) "Preparing Recipe…" else "Print Recipe") },
+                                leadingIcon = { Icon(Icons.Outlined.Print, contentDescription = null) },
+                                enabled = recipe != null && !preparingPrint,
+                                onClick = {
+                                    overflowExpanded = false
+                                    recipe?.let { loaded ->
+                                        preparingPrint = true
+                                        RecipePrinter.print(context, loaded,
+                                            onReady = { preparingPrint = false },
+                                            onError = { preparingPrint = false; printError = it })
+                                    }
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text("Edit Recipe") },
                                 leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
@@ -587,7 +642,7 @@ private fun IngredientsSection(
             )
             if (!isLocalMode) {
                 Text(
-                    text = "Long press to add",
+                    text = "Add to shopping list",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

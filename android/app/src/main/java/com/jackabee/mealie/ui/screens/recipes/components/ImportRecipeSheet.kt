@@ -160,7 +160,7 @@ fun ImportRecipeSheet(
                     Button(
                         onClick = {
                             scope.launch {
-                                val recipe = recipeViewModel.createLocalRecipe(newRecipeName) ?: return@launch
+                                val recipe = recipeViewModel.makeLocalRecipeDraft(newRecipeName)
                                 onRecipeCreated(recipe)
                             }
                         },

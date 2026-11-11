@@ -22,6 +22,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,6 +68,7 @@ fun RecipesPane(
     onOpenRecipe: (String) -> Unit,
 ) {
     val container = rememberAppContainer()
+    val scope = rememberCoroutineScope()
     val recipeState by recipeViewModel.uiState.collectAsStateWithLifecycle()
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -111,6 +114,11 @@ fun RecipesPane(
     }
 
     val topBarActions: @Composable () -> Unit = {
+        if (recipeViewModel.hasPendingSharedImports) {
+            androidx.compose.material3.TextButton(onClick = { scope.launch { recipeViewModel.processPendingImports() } }, enabled = !recipeState.isImporting) {
+                Text("Retry Shared Imports")
+            }
+        }
         IconButton(onClick = { showFavoritesOnly = !showFavoritesOnly }) {
             Icon(
                 imageVector = if (showFavoritesOnly) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,

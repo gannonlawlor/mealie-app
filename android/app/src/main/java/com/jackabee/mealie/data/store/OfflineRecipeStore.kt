@@ -27,24 +27,13 @@ class OfflineRecipeStore(
     // MARK: Save / Load
 
     fun saveRecipe(recipe: Recipe, imageData: ByteArray?) {
-        val id = recipe.id ?: return
-        try {
-            dir.mkdirs()
-            File(dir, "recipe_$id.json").writeText(json.encodeToString(Recipe.serializer(), recipe))
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Failed to save offline recipe $id: $e", e)
-            return
-        }
-
+        val id = requireNotNull(recipe.id) { "Recipe has no identifier" }
+        dir.mkdirs()
         if (imageData != null) {
-            try {
-                imagesDir.mkdirs()
-                File(imagesDir, "$id.jpg").writeBytes(imageData)
-            } catch (e: Exception) {
-                AppLog.w(TAG, "Failed to save offline image for $id: $e", e)
-            }
+            imagesDir.mkdirs()
+            atomicWrite(File(imagesDir, "$id.jpg"), imageData)
         }
-
+        atomicWrite(File(dir, "recipe_$id.json"), json.encodeToString(Recipe.serializer(), recipe).toByteArray())
         saveSavedIds(savedRecipeIds() + id)
     }
 
@@ -74,6 +63,12 @@ class OfflineRecipeStore(
 
     // MARK: Image
 
+    fun replaceImageIfSaved(id: String, data: ByteArray) {
+        if (!isRecipeSavedOffline(id)) return
+        imagesDir.mkdirs()
+        atomicWrite(File(imagesDir, "$id.jpg"), data)
+    }
+
     fun imageFilePath(recipeId: String): String? {
         val file = File(imagesDir, "$recipeId.jpg")
         return if (file.exists()) file.path else null
@@ -86,7 +81,7 @@ class OfflineRecipeStore(
     fun savedRecipeIds(): Set<String> {
         val raw = kv.getString(idsKey) ?: return emptySet()
         return try {
-            json.decodeFromString(SetSerializer(String.serializer()), raw)
+            json.decodeFromString(SetSerializer(String.serializer()), raw).filter { loadRecipe(it) != null }.toSet()
         } catch (_: Exception) {
             emptySet()
         }
@@ -100,6 +95,15 @@ class OfflineRecipeStore(
     }
 
     // MARK: Private
+
+    private fun atomicWrite(target: File, data: ByteArray) {
+        val temporary = File.createTempFile("offline-", ".tmp", target.parentFile)
+        try {
+            temporary.outputStream().use { it.write(data) }
+            java.nio.file.Files.move(temporary.toPath(), target.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally { temporary.delete() }
+    }
 
     private fun saveSavedIds(ids: Set<String>) {
         kv.putString(idsKey, json.encodeToString(SetSerializer(String.serializer()), ids))

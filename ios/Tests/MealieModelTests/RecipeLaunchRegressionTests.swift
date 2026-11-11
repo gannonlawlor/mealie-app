@@ -64,6 +64,140 @@ final class RecipeLaunchRegressionTests: XCTestCase {
         return try JSONDecoder().decode(Recipe.self, from: data)
     }
 
+    func testImageSaveFailureRetainsEditsAndRetryReplacesOfflineImage() async throws {
+        let offline = OfflineRecipeStore(defaults: defaults, directory: directory.appendingPathComponent("offline"))
+        let original = try recipe("photo")
+        try offline.saveRecipe(original, imageData: Data([1]))
+        let vm = RecipeViewModel(localStore: store, api: api, syncService: sync, offlineStore: offline)
+        LaunchURLProtocol.install { request in
+            if request.url!.path.hasSuffix("/image") { return (500, "{}") }
+            return (200, #"{"id":"photo","slug":"soup","name":"Soup"}"#)
+        }
+        let failed = await vm.saveRecipeEdits(slug: "soup", data: original, imageData: Data([2]))
+        XCTAssertFalse(failed)
+        XCTAssertEqual(vm.selectedRecipe?.id, "photo")
+        XCTAssertTrue(vm.errorMessage.hasPrefix("Recipe saved, but"))
+        XCTAssertEqual(vm.imageRevision, 0)
+        LaunchURLProtocol.install { request in
+            if request.url!.path.hasSuffix("/image") { return (200, "{}") }
+            return (200, #"{"id":"photo","slug":"soup","name":"Soup"}"#)
+        }
+        let saved = await vm.saveRecipeEdits(slug: "soup", data: original, imageData: Data([2]))
+        XCTAssertTrue(saved)
+        XCTAssertEqual(vm.imageRevision, 1)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: offline.imageFilePath(recipeId: "photo")!)), Data([2]))
+    }
+
+    func testNewRecipeDraftIsOnlyPersistedOnSave() async throws {
+        let vm = RecipeViewModel(localStore: store)
+        vm.isLocalMode = true
+        let draft = vm.makeLocalRecipeDraft(name: "Draft Soup")
+        XCTAssertTrue(store.loadAllRecipes().isEmpty)
+        // Cancelling releases the draft; creating another draft must still leave storage empty.
+        let second = vm.makeLocalRecipeDraft(name: "Draft Soup")
+        XCTAssertNotEqual(draft.id, second.id)
+        XCTAssertTrue(store.loadAllRecipes().isEmpty)
+        let saved = await vm.updateRecipe(slug: second.slug!, data: second)
+        XCTAssertTrue(saved)
+        XCTAssertEqual(store.loadAllRecipes().compactMap(\.id), [second.id!])
+    }
+
+    func testInterruptedShareRemainsDurableAfterRestart() async throws {
+        let queue = SharedImportQueue(defaults: defaults)
+        queue.enqueue("https://test.invalid/one")
+        let started = expectation(description: "parser started")
+        let vm = RecipeViewModel(localStore: store, importQueue: queue, parseRecipe: { _ in
+            started.fulfill()
+            try await Task.sleep(nanoseconds: 10_000_000_000)
+            throw URLError(.cancelled)
+        })
+        vm.isLocalMode = true
+        let drain = Task { await vm.processPendingImports() }
+        await fulfillment(of: [started], timeout: 2)
+        drain.cancel()
+        await drain.value
+        XCTAssertEqual(SharedImportQueue(defaults: defaults).pendingURLs(), ["https://test.invalid/one"])
+        XCTAssertFalse(vm.isImporting)
+        let recovered = RecipeViewModel(localStore: store, importQueue: queue, parseRecipe: { _ in
+            try JSONDecoder().decode(Recipe.self, from: Data(#"{"id":"recovered","name":"Soup"}"#.utf8))
+        })
+        recovered.isLocalMode = true
+        await recovered.processPendingImports()
+        XCTAssertTrue(queue.pendingURLs().isEmpty)
+        XCTAssertEqual(store.loadAllRecipes().compactMap(\.id), ["recovered"])
+    }
+
+    func testSharedDuplicateIsDurableUntilDecision() async throws {
+        let queue = SharedImportQueue(defaults: defaults)
+        queue.enqueue("https://test.invalid/one")
+        queue.enqueue("https://test.invalid/two")
+        try store.saveRecipe(recipe("existing"))
+        let vm = RecipeViewModel(localStore: store, importQueue: queue, parseRecipe: { url in
+            try JSONDecoder().decode(Recipe.self, from: Data("{\"id\":\"new\",\"name\":\"Soup\",\"orgURL\":\"\(url)\"}".utf8))
+        })
+        vm.isLocalMode = true
+        await vm.processPendingImports()
+        XCTAssertEqual(vm.pendingImportRecipe?.orgURL, "https://test.invalid/one")
+        XCTAssertEqual(SharedImportQueue(defaults: defaults).pendingURLs().count, 2)
+        await vm.processPendingImports()
+        XCTAssertEqual(vm.pendingImportRecipe?.orgURL, "https://test.invalid/one")
+        await vm.confirmImportNew()
+        XCTAssertEqual(queue.pendingURLs(), ["https://test.invalid/two"])
+    }
+
+    func testOfflineCopySurvivesRestartAndRescuesMissingSync() async throws {
+        let offlineDirectory = directory.appendingPathComponent("offline")
+        let offline = OfflineRecipeStore(defaults: defaults, directory: offlineDirectory)
+        try offline.saveRecipe(recipe("saved"), imageData: nil)
+        let reopened = OfflineRecipeStore(defaults: defaults, directory: offlineDirectory)
+        XCTAssertNotNil(reopened.loadRecipeBySlug(slug: "soup"))
+        LaunchURLProtocol.install { _ in throw URLError(.notConnectedToInternet) }
+        let vm = RecipeViewModel(localStore: store, api: api, syncService: sync, offlineStore: reopened)
+        await vm.loadRecipeDetail(slug: "soup")
+        XCTAssertEqual(vm.selectedRecipe?.id, "saved")
+        XCTAssertFalse(vm.isLoadingDetail)
+    }
+
+    func testFailedOfflineWriteDoesNotPublishSavedMarker() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let blocked = directory.appendingPathComponent("blocked")
+        try Data("blocks directory".utf8).write(to: blocked)
+        let offline = OfflineRecipeStore(defaults: defaults, directory: blocked)
+        XCTAssertThrowsError(try offline.saveRecipe(recipe("saved"), imageData: nil))
+        XCTAssertFalse(offline.isRecipeSavedOffline(id: "saved"))
+    }
+
+    func testPartialSyncCountsReadableDetailsAndRetriesMissingFiles() async throws {
+        LaunchURLProtocol.install { request in
+            if request.url!.path == "/api/recipes" {
+                return (200, #"{"items":[{"id":"a","slug":"a","dateUpdated":"1"},{"id":"b","slug":"b","dateUpdated":"1"}],"page":1,"per_page":50,"total":2,"total_pages":1}"#)
+            }
+            if request.url!.path.hasSuffix("/b") { return (500, "{}") }
+            return (200, #"{"id":"a","slug":"a","dateUpdated":"1"}"#)
+        }
+        let partial = await sync.syncAll()
+        XCTAssertFalse(partial)
+        XCTAssertEqual(sync.syncedRecipeCount, 1)
+        XCTAssertEqual(sync.totalRecipeCount, 2)
+        XCTAssertEqual(sync.pendingRecipeCount, 1)
+        XCTAssertNil(sync.lastSyncDate)
+        LaunchURLProtocol.install { request in
+            if request.url!.path == "/api/recipes" {
+                return (200, #"{"items":[{"id":"a","slug":"a","dateUpdated":"1"},{"id":"b","slug":"b","dateUpdated":"1"}],"page":1,"per_page":50,"total":2,"total_pages":1}"#)
+            }
+            let id = request.url!.lastPathComponent
+            return (200, "{\"id\":\"\(id)\",\"slug\":\"\(id)\",\"dateUpdated\":\"1\"}")
+        }
+        let complete = await sync.syncAll()
+        XCTAssertTrue(complete)
+        XCTAssertEqual(sync.syncedRecipeCount, 2)
+        XCTAssertEqual(sync.pendingRecipeCount, 0)
+        try Data("corrupt".utf8).write(to: directory.appendingPathComponent("recipe_a.json"))
+        let repaired = await sync.syncAll()
+        XCTAssertTrue(repaired)
+        XCTAssertNotNil(sync.loadRecipe(id: "a"))
+    }
+
     func testSameSlugRecipesNavigateEditFavoriteAndDeleteIndependently() async throws {
         try store.saveRecipe(recipe("first", description: "first record"))
         try store.saveRecipe(recipe("second", description: "second record"))

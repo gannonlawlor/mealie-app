@@ -45,8 +45,10 @@ class OfflineRecipeStoreTest {
     }
 
     @Test
-    fun `recipe without id is ignored`() {
-        store.saveRecipe(Recipe(name = "No Id"), imageData = null)
+    fun `recipe without id reports save failure`() {
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            store.saveRecipe(Recipe(name = "No Id"), imageData = null)
+        }
         assertTrue(store.savedRecipeIds().isEmpty())
     }
 

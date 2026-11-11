@@ -17,6 +17,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.request.ImageRequest
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,23 +62,28 @@ fun formatDuration(iso: String): String {
  * Coil model for a recipe list thumbnail. Local mode uses the locally stored
  * image file; server mode falls back to the tiny image endpoint.
  */
-fun thumbnailImageModel(container: AppContainer, isLocalMode: Boolean, recipeId: String): Any? {
-    if (isLocalMode) {
-        return container.localRecipeStore.imageFilePath(recipeId)?.let { File(it) }
-    }
-    return container.api.recipeImageURL(recipeId, "tiny-original.webp")
-}
+@Composable
+fun thumbnailImageModel(container: AppContainer, isLocalMode: Boolean, recipeId: String): Any? =
+    versionedImageModel(container, isLocalMode, recipeId, "tiny-original.webp", false)
 
-/**
- * Coil model for the recipe detail hero image. Resolution order:
- * local file path -> offline file path -> network min-original.webp.
- */
-fun heroImageModel(container: AppContainer, isLocalMode: Boolean, recipeId: String): Any? {
-    if (isLocalMode) {
-        return container.localRecipeStore.imageFilePath(recipeId)?.let { File(it) }
+@Composable
+fun heroImageModel(container: AppContainer, isLocalMode: Boolean, recipeId: String): Any? =
+    versionedImageModel(container, isLocalMode, recipeId, "min-original.webp", true)
+
+@Composable
+private fun versionedImageModel(container: AppContainer, local: Boolean, id: String, size: String, offline: Boolean): Any? {
+    val changes by container.recipeImageVersions.changes.collectAsStateWithLifecycle()
+    val version = remember(changes, id) { container.recipeImageVersions.version(id) }
+    val data: Any = if (local) {
+        container.localRecipeStore.imageFilePath(id)?.let { File(it) } ?: return null
+    } else if (offline && container.offlineRecipeStore.imageFilePath(id) != null) {
+        File(container.offlineRecipeStore.imageFilePath(id)!!)
+    } else {
+        val url = container.api.recipeImageURL(id, size)
+        if (version.isEmpty()) url else "$url?imageVersion=$version"
     }
-    container.offlineRecipeStore.imageFilePath(recipeId)?.let { return File(it) }
-    return container.api.recipeImageURL(recipeId)
+    val key = "$data#$version"
+    return ImageRequest.Builder(LocalContext.current).data(data).memoryCacheKey(key).diskCacheKey(key).build()
 }
 
 /** Red dismissible error card with an expandable detail section. */

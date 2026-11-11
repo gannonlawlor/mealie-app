@@ -139,6 +139,9 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.arch.core.testing)
+    // PDF generation needs Android's native PDF engine, which Robolectric does not implement.
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 
     // JVM screenshot tests (Roborazzi + Robolectric, no emulator required)
     testImplementation(platform(libs.androidx.compose.bom))

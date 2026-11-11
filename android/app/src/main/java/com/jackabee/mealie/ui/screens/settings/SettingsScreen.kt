@@ -89,6 +89,8 @@ fun SettingsScreen(authViewModel: AuthViewModel, shoppingViewModel: ShoppingView
     var localRecipeCountRefresh by remember { mutableIntStateOf(0) }
 
     val syncedCount = remember(isSyncing) { container.recipeSyncService.syncedRecipeCount }
+    val totalCount = remember(isSyncing) { container.recipeSyncService.totalRecipeCount }
+    val pendingCount = remember(isSyncing) { container.recipeSyncService.pendingRecipeCount }
     val localRecipeCount by produceState(initialValue = 0, localRecipeCountRefresh) {
         value = container.localRecipeStore.recipeCount()
     }
@@ -253,7 +255,7 @@ fun SettingsScreen(authViewModel: AuthViewModel, shoppingViewModel: ShoppingView
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                     ) {
-                        Text(text = "Recipes Synced", modifier = Modifier.weight(1f))
+                        Text(text = "Recipes Cached", modifier = Modifier.weight(1f))
                         if (isSyncing) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -270,10 +272,17 @@ fun SettingsScreen(authViewModel: AuthViewModel, shoppingViewModel: ShoppingView
                             }
                         } else {
                             Text(
-                                text = "$syncedCount",
+                                text = "$syncedCount of $totalCount",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                    }
+                    if (pendingCount > 0) {
+                        Text("$pendingCount recipes need downloading. Some offline content may be missing or out of date.",
+                            modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
+                    }
+                    TextButton(onClick = { scope.launch { container.recipeSyncService.syncAll() } }, enabled = !isSyncing) {
+                        Text("Retry Recipe Sync")
                     }
                 }
             }

@@ -29,10 +29,17 @@ struct RecipeSplitView: View {
                     }
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
+                            if recipeVM.hasPendingSharedImports {
+                                Button("Retry Shared Imports") { Task { await recipeVM.processPendingImports() } }
+                                    .disabled(recipeVM.isImporting)
+                            }
                             Button(action: { showImportSheet = true }) {
                                 Image(systemName: "plus")
-                            }
+                            }.accessibilityLabel("Add recipe")
                         }
+                    }
+                    .onChange(of: recipeVM.showDuplicateAlert) { _, show in
+                        if show { showImportSheet = true }
                     }
                     .sheet(isPresented: $showImportSheet) {
                         ImportRecipeView(recipeVM: recipeVM, isPresented: $showImportSheet)
@@ -172,7 +179,7 @@ struct RecipeSplitView: View {
                             recipe: recipe,
                             isLocalMode: recipeVM.isLocalMode,
                             isSavedOffline: !recipeVM.isLocalMode && recipeVM.isOffline(recipeId: recipe.id ?? "")
-                        )
+                        ).id("\(recipe.id ?? "")-\(recipeVM.imageRevision)")
                     }
                     .listRowBackground(
                         selectedSlug == recipe.slug

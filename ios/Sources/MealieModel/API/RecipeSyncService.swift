@@ -1,7 +1,9 @@
 import Foundation
+import Observation
 
 private let logger = Log(category: "RecipeSync")
 
+@Observable
 public class RecipeSyncService: @unchecked Sendable {
     public static let shared = RecipeSyncService()
 
@@ -24,11 +26,20 @@ public class RecipeSyncService: @unchecked Sendable {
 
     public var isSyncing: Bool = false
     public var syncedRecipeCount: Int {
-        syncedIds().count
+        syncedIds().filter { loadRecipe(id: $0) != nil }.count
     }
 
     public var isSynced: Bool {
-        defaults.object(forKey: lastSyncKey) != nil
+        storeDirectory().map { FileManager.default.fileExists(atPath: $0.appendingPathComponent(summaryIndexFile).path) } ?? false
+    }
+
+    public var totalRecipeCount: Int { loadSummaryIndex().count }
+    public var pendingRecipeCount: Int {
+        let pending = Set(defaults.stringArray(forKey: "mealie_sync_pending_ids") ?? [])
+        return loadSummaryIndex().filter { summary in
+            guard let id = summary.id else { return true }
+            return pending.contains(id) || loadRecipe(id: id) == nil
+        }.count
     }
 
     public var lastSyncDate: Date? {
@@ -77,7 +88,7 @@ public class RecipeSyncService: @unchecked Sendable {
             var slugsToFetch: [(id: String, slug: String)] = []
             for summary in allSummaries {
                 guard let id = summary.id, let slug = summary.slug else { continue }
-                if let localDate = localDates[id], localDate == (summary.dateUpdated ?? "") {
+                if let localDate = localDates[id], localDate == (summary.dateUpdated ?? ""), loadRecipe(id: id) != nil {
                     continue // already up to date
                 }
                 slugsToFetch.append((id: id, slug: slug))
@@ -87,6 +98,7 @@ public class RecipeSyncService: @unchecked Sendable {
 
             // 3. Batch-fetch full details
             var updatedDates = localDates
+            var failedIDs = Set<String>()
             for batchStart in stride(from: 0, to: slugsToFetch.count, by: batchSize) {
                 let batchEnd = min(batchStart + batchSize, slugsToFetch.count)
                 let batch = Array(slugsToFetch[batchStart..<batchEnd])
@@ -105,9 +117,11 @@ public class RecipeSyncService: @unchecked Sendable {
                     }
 
                     for await (id, recipe) in group {
-                        if let recipe = recipe {
-                            saveRecipe(recipe)
-                            updatedDates[id] = recipe.dateUpdated ?? recipe.updatedAt ?? ""
+                        if let recipe, recipe.id == id, saveRecipe(recipe) {
+                            updatedDates[id] = allSummaries.first { $0.id == id }?.dateUpdated ?? ""
+                        } else {
+                            failedIDs.insert(id)
+                            updatedDates.removeValue(forKey: id)
                         }
                     }
                 }
@@ -124,13 +138,16 @@ public class RecipeSyncService: @unchecked Sendable {
             }
 
             // 5. Update tracking and summary index
-            saveSyncedIds(serverIds)
+            let cachedIDs = Set(serverIds.filter { loadRecipe(id: $0) != nil })
+            failedIDs.formUnion(serverIds.subtracting(cachedIDs))
+            saveSyncedIds(cachedIDs)
             saveDateIndex(updatedDates)
-            saveSummaryIndex(allSummaries)
-            defaults.set(Date(), forKey: lastSyncKey)
-
-            logger.info("Sync complete: \(serverIds.count) recipes synced")
-            return true
+            defaults.set(Array(failedIDs), forKey: "mealie_sync_pending_ids")
+            guard saveSummaryIndex(allSummaries) else { return false }
+            let complete = failedIDs.isEmpty && cachedIDs.count == allSummaries.count
+            if complete { defaults.set(Date(), forKey: lastSyncKey) }
+            logger.info("Sync finished: \(cachedIDs.count)/\(allSummaries.count) recipes cached")
+            return complete
         } catch {
             logger.error("Recipe sync failed: \(error)")
             return false
@@ -179,7 +196,7 @@ public class RecipeSyncService: @unchecked Sendable {
     // MARK: - Targeted Updates (after writes)
 
     public func updateRecipe(_ recipe: Recipe) {
-        saveRecipe(recipe)
+        guard saveRecipe(recipe) else { return }
 
         // Update summary index
         var summaries = loadSummaryIndex()
@@ -236,19 +253,22 @@ public class RecipeSyncService: @unchecked Sendable {
         defaults.removeObject(forKey: idsKey)
         defaults.removeObject(forKey: lastSyncKey)
         defaults.removeObject(forKey: dateIndexKey)
+        defaults.removeObject(forKey: "mealie_sync_pending_ids")
         isSyncing = false
     }
 
     // MARK: - Private Storage
 
-    private func saveRecipe(_ recipe: Recipe) {
-        guard let dir = storeDirectory(), let id = recipe.id else { return }
+    private func saveRecipe(_ recipe: Recipe) -> Bool {
+        guard let dir = storeDirectory(), let id = recipe.id else { return false }
         let fileURL = dir.appendingPathComponent("recipe_\(id).json")
         do {
             let data = try JSONEncoder().encode(recipe)
-            try data.write(to: fileURL)
+            try data.write(to: fileURL, options: .atomic)
+            return true
         } catch {
             logger.error("Failed to save synced recipe \(id): \(error)")
+            return false
         }
     }
 
@@ -258,14 +278,16 @@ public class RecipeSyncService: @unchecked Sendable {
         try? FileManager.default.removeItem(at: fileURL)
     }
 
-    private func saveSummaryIndex(_ summaries: [RecipeSummary]) {
-        guard let dir = storeDirectory() else { return }
+    @discardableResult private func saveSummaryIndex(_ summaries: [RecipeSummary]) -> Bool {
+        guard let dir = storeDirectory() else { return false }
         let fileURL = dir.appendingPathComponent(summaryIndexFile)
         do {
             let data = try JSONEncoder().encode(summaries)
-            try data.write(to: fileURL)
+            try data.write(to: fileURL, options: .atomic)
+            return true
         } catch {
             logger.error("Failed to save summary index: \(error)")
+            return false
         }
     }
 
