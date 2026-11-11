@@ -75,7 +75,8 @@ class ScreenshotEnv(root: File) {
     val cache = CacheService(File(root, "cache"), MealieJson)
     val offlineStore = OfflineRecipeStore(File(root, "files"), kv, MealieJson)
     val syncService = RecipeSyncService(File(root, "files"), kv, MealieApi(MealieClient(), MealieJson), MealieJson)
-    val localStore = LocalRecipeStore(FakeLocalRecipeDao(), kv, MealieJson, File(root, "local"))
+    val localDao = FakeLocalRecipeDao()
+    val localStore = LocalRecipeStore(localDao, kv, MealieJson, File(root, "local"))
     val parser = FakeRecipeParser()
 
     private val io = Dispatchers.Unconfined

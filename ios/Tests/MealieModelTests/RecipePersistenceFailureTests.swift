@@ -7,8 +7,9 @@ final class RecipePersistenceFailureTests: XCTestCase {
     private struct DiskFailure: Error {}
 
     private final class FailingStore: RecipePersistence, @unchecked Sendable {
-        func loadAllRecipes() -> [Recipe] { [] }
-        func loadRecipe(slug: String) -> Recipe? { nil }
+        var existing: Recipe?
+        func loadAllRecipes() -> [Recipe] { existing.map { [$0] } ?? [] }
+        func loadRecipe(slug: String) -> Recipe? { existing }
         func saveRecipe(_ recipe: Recipe) throws { throw DiskFailure() }
         func deleteRecipe(id: String) throws { throw DiskFailure() }
         func recipeSummaries() -> [RecipeSummary] { [] }
@@ -50,6 +51,19 @@ final class RecipePersistenceFailureTests: XCTestCase {
         XCTAssertNil(vm.selectedRecipe)
         let created = await vm.createLocalRecipe(name: "Unsaved")
         XCTAssertNil(created)
+    }
+
+    func testFailedDeleteRetainsSelectedRecipeAndSavedData() async {
+        let persistence = FailingStore()
+        persistence.existing = recipe()
+        let vm = RecipeViewModel(localStore: LocalRecipeStore(store: persistence))
+        vm.isLocalMode = true
+        await vm.loadRecipeDetail(slug: "test")
+        let deleted = await vm.deleteRecipe(slug: "test")
+        XCTAssertFalse(deleted)
+        XCTAssertEqual(vm.selectedRecipe?.id, persistence.existing?.id)
+        XCTAssertFalse(vm.errorMessage.isEmpty)
+        XCTAssertEqual(persistence.loadAllRecipes().count, 1)
     }
 
     func testFailedFavoriteDoesNotChangeDisplayedState() async {

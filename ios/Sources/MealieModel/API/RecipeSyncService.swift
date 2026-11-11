@@ -12,7 +12,13 @@ public class RecipeSyncService: @unchecked Sendable {
     private let dateIndexKey = "mealie_sync_date_index"
     private let batchSize = 5
 
-    private init() {}
+    private let api: MealieAPI
+    private let defaults: UserDefaults
+    private let directory: URL?
+
+    init(api: MealieAPI = .shared, defaults: UserDefaults = .standard, directory: URL? = nil) {
+        self.api = api; self.defaults = defaults; self.directory = directory
+    }
 
     // MARK: - Observable State
 
@@ -22,18 +28,30 @@ public class RecipeSyncService: @unchecked Sendable {
     }
 
     public var isSynced: Bool {
-        UserDefaults.standard.object(forKey: lastSyncKey) != nil
+        defaults.object(forKey: lastSyncKey) != nil
     }
 
     public var lastSyncDate: Date? {
-        UserDefaults.standard.object(forKey: lastSyncKey) as? Date
+        defaults.object(forKey: lastSyncKey) as? Date
     }
 
     // MARK: - Sync
 
-    public func syncAll() async {
-        guard !isSyncing else { return }
+    @MainActor private var syncTask: Task<Bool, Never>?
+
+    @discardableResult
+    @MainActor public func syncAll() async -> Bool {
+        if let syncTask { return await syncTask.value }
+        let task = Task { await self.performSync() }
+        syncTask = task
+        let success = await task.value
+        syncTask = nil
+        return success
+    }
+
+    private func performSync() async -> Bool {
         isSyncing = true
+        defer { isSyncing = false }
         logger.info("Starting recipe sync...")
 
         do {
@@ -43,7 +61,7 @@ public class RecipeSyncService: @unchecked Sendable {
             var totalPages = 1
 
             while page <= totalPages {
-                let response = try await MealieAPI.shared.getRecipes(page: page, perPage: 50)
+                let response = try await api.getRecipes(page: page, perPage: 50)
                 allSummaries.append(contentsOf: response.items)
                 totalPages = response.totalPages
                 page += 1
@@ -77,7 +95,7 @@ public class RecipeSyncService: @unchecked Sendable {
                     for item in batch {
                         group.addTask {
                             do {
-                                let recipe = try await MealieAPI.shared.getRecipe(slug: item.slug)
+                                let recipe = try await self.api.getRecipe(slug: item.slug)
                                 return (item.id, recipe)
                             } catch {
                                 logger.error("Failed to fetch recipe \(item.slug): \(error)")
@@ -109,14 +127,14 @@ public class RecipeSyncService: @unchecked Sendable {
             saveSyncedIds(serverIds)
             saveDateIndex(updatedDates)
             saveSummaryIndex(allSummaries)
-            UserDefaults.standard.set(Date(), forKey: lastSyncKey)
+            defaults.set(Date(), forKey: lastSyncKey)
 
             logger.info("Sync complete: \(serverIds.count) recipes synced")
+            return true
         } catch {
             logger.error("Recipe sync failed: \(error)")
+            return false
         }
-
-        isSyncing = false
     }
 
     // MARK: - Read (Summary Index)
@@ -215,9 +233,9 @@ public class RecipeSyncService: @unchecked Sendable {
     public func clearAll() {
         guard let dir = storeDirectory() else { return }
         try? FileManager.default.removeItem(at: dir)
-        UserDefaults.standard.removeObject(forKey: idsKey)
-        UserDefaults.standard.removeObject(forKey: lastSyncKey)
-        UserDefaults.standard.removeObject(forKey: dateIndexKey)
+        defaults.removeObject(forKey: idsKey)
+        defaults.removeObject(forKey: lastSyncKey)
+        defaults.removeObject(forKey: dateIndexKey)
         isSyncing = false
     }
 
@@ -252,6 +270,10 @@ public class RecipeSyncService: @unchecked Sendable {
     }
 
     private func storeDirectory() -> URL? {
+        if let directory {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        }
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }
@@ -263,21 +285,21 @@ public class RecipeSyncService: @unchecked Sendable {
     // MARK: - ID Tracking
 
     private func syncedIds() -> Set<String> {
-        let array = (UserDefaults.standard.object(forKey: idsKey) as? [String]) ?? []
+        let array = (defaults.object(forKey: idsKey) as? [String]) ?? []
         return Set(array)
     }
 
     private func saveSyncedIds(_ ids: Set<String>) {
-        UserDefaults.standard.set(Array(ids), forKey: idsKey)
+        defaults.set(Array(ids), forKey: idsKey)
     }
 
     // MARK: - Date Index (for incremental sync)
 
     private func loadDateIndex() -> [String: String] {
-        (UserDefaults.standard.object(forKey: dateIndexKey) as? [String: String]) ?? [:]
+        (defaults.object(forKey: dateIndexKey) as? [String: String]) ?? [:]
     }
 
     private func saveDateIndex(_ index: [String: String]) {
-        UserDefaults.standard.set(index, forKey: dateIndexKey)
+        defaults.set(index, forKey: dateIndexKey)
     }
 }

@@ -42,8 +42,24 @@ private let logger = Log(category: "Recipes")
 
     private let localStore: LocalRecipeStore
 
-    public init() { localStore = .shared }
-    init(localStore: LocalRecipeStore) { self.localStore = localStore }
+    private let api: MealieAPI
+    private let syncService: RecipeSyncService
+
+    public init() { localStore = .shared; api = .shared; syncService = .shared }
+    init(localStore: LocalRecipeStore, api: MealieAPI = .shared, syncService: RecipeSyncService = .shared) {
+        self.localStore = localStore; self.api = api; self.syncService = syncService
+    }
+
+    public func refreshRecipes() async {
+        guard !isLocalMode else { await loadRecipes(reset: true); return }
+        let success = await syncService.syncAll()
+        await loadRecipes(reset: true)
+        errorMessage = success ? "" : "Failed to refresh recipes. Showing saved recipes."
+        errorDetail = ""
+        if success, let slug = selectedRecipe?.slug {
+            selectedRecipe = syncService.loadRecipeBySlug(slug: slug)
+        }
+    }
 
     private func reportStorageFailure(_ error: Error) {
         errorMessage = "Your recipe changes could not be saved. Please try again."
@@ -90,7 +106,7 @@ private let logger = Log(category: "Recipes")
             recipes = filtered
                 .sorted { ($0.name ?? "").localizedCaseInsensitiveCompare($1.name ?? "") == .orderedAscending }
                 .map { recipe in
-                RecipeSummary(id: recipe.id, slug: recipe.slug, name: recipe.name,
+                RecipeSummary(id: recipe.id, slug: localStore.navigationIdentifier(recipe), name: recipe.name,
                               description: recipe.description, image: recipe.image,
                               recipeCategory: recipe.recipeCategory, tags: recipe.tags,
                               rating: recipe.rating, dateAdded: recipe.dateAdded,
@@ -103,12 +119,12 @@ private let logger = Log(category: "Recipes")
         }
 
         // Server mode with sync available — read from sync store
-        if RecipeSyncService.shared.isSynced {
+        if syncService.isSynced {
             isLoading = true
 
             if !searchText.isEmpty {
                 // Search full recipes locally for ingredient matching
-                let allRecipes = RecipeSyncService.shared.loadAllSyncedRecipes()
+                let allRecipes = syncService.loadAllSyncedRecipes()
                 let query = searchText.lowercased()
                 var filtered = allRecipes.filter { recipe in
                     if (recipe.name ?? "").lowercased().contains(query) { return true }
@@ -140,7 +156,7 @@ private let logger = Log(category: "Recipes")
                 }
             } else {
                 // Browse from summary index
-                var all = RecipeSyncService.shared.loadSummaryIndex()
+                var all = syncService.loadSummaryIndex()
                 if let cat = selectedCategory {
                     all = all.filter { ($0.recipeCategory ?? []).contains(where: { $0.slug == cat.slug }) }
                 }
@@ -171,7 +187,7 @@ private let logger = Log(category: "Recipes")
         errorDetail = ""
 
         do {
-            let response = try await MealieAPI.shared.getRecipes(
+            let response = try await api.getRecipes(
                 page: currentPage,
                 perPage: 30,
                 search: searchText.isEmpty ? nil : searchText,
@@ -213,7 +229,7 @@ private let logger = Log(category: "Recipes")
         }
 
         // Read from sync store if available
-        if let synced = RecipeSyncService.shared.loadRecipeBySlug(slug: slug) {
+        if let synced = syncService.loadRecipeBySlug(slug: slug) {
             selectedRecipe = synced
             isLoadingDetail = false
             return
@@ -222,9 +238,9 @@ private let logger = Log(category: "Recipes")
         // Fallback: fetch from API (recipe may be brand new or sync incomplete)
         isLoadingDetail = true
         do {
-            let recipe = try await MealieAPI.shared.getRecipe(slug: slug)
+            let recipe = try await api.getRecipe(slug: slug)
             selectedRecipe = recipe
-            RecipeSyncService.shared.updateRecipe(recipe)
+            syncService.updateRecipe(recipe)
             isLoadingDetail = false
         } catch {
             errorMessage = "Failed to load recipe."
@@ -254,7 +270,7 @@ private let logger = Log(category: "Recipes")
             categories = cached
         }
         do {
-            let response = try await MealieAPI.shared.getCategories()
+            let response = try await api.getCategories()
             categories = response.items
             CacheService.shared.saveCategories(response.items)
         } catch {
@@ -282,7 +298,7 @@ private let logger = Log(category: "Recipes")
             tags = cached
         }
         do {
-            let response = try await MealieAPI.shared.getTags()
+            let response = try await api.getTags()
             tags = response.items
             CacheService.shared.saveTags(response.items)
         } catch {
@@ -303,10 +319,10 @@ private let logger = Log(category: "Recipes")
         }
 
         do {
-            try await MealieAPI.shared.deleteRecipe(slug: slug)
+            try await api.deleteRecipe(slug: slug)
             selectedRecipe = nil
             recipes.removeAll { $0.slug == slug }
-            RecipeSyncService.shared.removeRecipe(slug: slug)
+            syncService.removeRecipe(slug: slug)
             return true
         } catch {
             errorMessage = "Failed to delete recipe."
@@ -373,7 +389,7 @@ private let logger = Log(category: "Recipes")
         }
 
         do {
-            let slug = try await MealieAPI.shared.createRecipeFromURL(url: importURL)
+            let slug = try await api.createRecipeFromURL(url: importURL)
             importURL = ""
             isImporting = false
             let landed = await ingestImportedRecipe(slug: slug)
@@ -404,13 +420,13 @@ private let logger = Log(category: "Recipes")
         var fetched: Recipe? = nil
         for delayMs in [400, 800, 1_500, 2_500] {
             try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
-            if let recipe = try? await MealieAPI.shared.getRecipe(slug: slug) {
+            if let recipe = try? await api.getRecipe(slug: slug) {
                 fetched = recipe
                 break
             }
         }
         if let recipe = fetched {
-            RecipeSyncService.shared.updateRecipe(recipe)
+            syncService.updateRecipe(recipe)
         } else {
             logger.error("Imported recipe \(slug) was not readable back from the server yet")
         }
@@ -489,7 +505,8 @@ private let logger = Log(category: "Recipes")
 
     public func loadFavorites(user: User?) {
         if isLocalMode {
-            favoriteRecipes = localStore.loadFavorites()
+            do { favoriteRecipes = try localStore.loadNavigationFavorites() }
+            catch { reportStorageFailure(error) }
             return
         }
         guard let slugs = user?.favoriteRecipes else { return }
@@ -525,9 +542,9 @@ private let logger = Log(category: "Recipes")
 
         do {
             if wasFavorite {
-                try await MealieAPI.shared.removeFavorite(userId: userId, slug: slug)
+                try await api.removeFavorite(userId: userId, slug: slug)
             } else {
-                try await MealieAPI.shared.addFavorite(userId: userId, slug: slug)
+                try await api.addFavorite(userId: userId, slug: slug)
             }
         } catch {
             // Revert on failure
@@ -548,16 +565,16 @@ private let logger = Log(category: "Recipes")
         if isLocalMode {
             do {
                 try localStore.saveRecipe(data)
-                selectedRecipe = localStore.loadRecipe(slug: slug) ?? data
+                selectedRecipe = localStore.loadRecipe(slug: localStore.navigationIdentifier(data) ?? slug) ?? data
                 await loadRecipes(reset: true)
                 return true
             } catch { reportStorageFailure(error); return false }
         }
 
         do {
-            let updated = try await MealieAPI.shared.updateRecipe(slug: slug, data: data)
+            let updated = try await api.updateRecipe(slug: slug, data: data)
             selectedRecipe = updated
-            RecipeSyncService.shared.updateRecipe(updated)
+            syncService.updateRecipe(updated)
             await loadRecipes(reset: true)
             return true
         } catch {
@@ -581,10 +598,10 @@ private let logger = Log(category: "Recipes")
     public func saveRecipeOffline(slug: String) async {
         isSavingOffline = true
         do {
-            let recipe = try await MealieAPI.shared.getRecipe(slug: slug)
+            let recipe = try await api.getRecipe(slug: slug)
             var imageData: Data? = nil
             if let recipeId = recipe.id {
-                let urlString = MealieAPI.shared.recipeImageURL(recipeId: recipeId)
+                let urlString = api.recipeImageURL(recipeId: recipeId)
                 if let url = URL(string: urlString) {
                     imageData = try? await URLSession.shared.data(from: url).0
                 }
@@ -627,7 +644,7 @@ private let logger = Log(category: "Recipes")
         }
 
         do {
-            try await MealieAPI.shared.uploadRecipeImage(slug: slug, imageData: imageData)
+            try await api.uploadRecipeImage(slug: slug, imageData: imageData)
             // Clear cached images so fresh ones are loaded
             if let recipeId = selectedRecipe?.id {
                 ImageCacheService.shared.removeCachedImages(recipeId: recipeId)

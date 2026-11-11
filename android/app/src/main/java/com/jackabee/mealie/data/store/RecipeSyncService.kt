@@ -1,10 +1,13 @@
 package com.jackabee.mealie.data.store
 
-import com.jackabee.mealie.data.api.MealieApi
+import com.jackabee.mealie.data.api.MealieApiSource
 import com.jackabee.mealie.data.auth.KeyValueStore
 import com.jackabee.mealie.data.model.Recipe
 import com.jackabee.mealie.data.model.RecipeSummary
 import com.jackabee.mealie.ui.viewmodel.AppLog
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -32,7 +35,7 @@ private const val TAG = "RecipeSyncService"
 class RecipeSyncService(
     filesRoot: File,
     private val kv: KeyValueStore,
-    private val api: MealieApi,
+    private val api: MealieApiSource,
     private val json: Json,
 ) {
 
@@ -64,8 +67,10 @@ class RecipeSyncService(
 
     // MARK: Sync
 
-    suspend fun syncAll() {
-        if (!_isSyncing.compareAndSet(expect = false, update = true)) return
+    private val syncMutex = Mutex()
+
+    suspend fun syncAll(): Boolean = syncMutex.withLock {
+        _isSyncing.value = true
         try {
             withContext(Dispatchers.IO) {
                 // 1. Fetch all recipe summaries from server (paged)
@@ -102,6 +107,8 @@ class RecipeSyncService(
                             async {
                                 try {
                                     id to api.getRecipe(slug)
+                                } catch (e: CancellationException) {
+                                    throw e
                                 } catch (e: Exception) {
                                     AppLog.w(TAG, "Failed to fetch recipe $slug: $e", e)
                                     id to null
@@ -130,8 +137,12 @@ class RecipeSyncService(
                 saveSummaryIndex(allSummaries)
                 kv.putLong(lastSyncKey, System.currentTimeMillis())
             }
+            true
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.w(TAG, "Recipe sync failed: $e", e)
+            false
         } finally {
             _isSyncing.value = false
         }

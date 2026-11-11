@@ -64,7 +64,7 @@ class RecipeSwipeToDeleteTest {
 
         composeRule.onNodeWithText("Delete").assertIsDisplayed()
         // The swipe alone must not delete anything.
-        assert(env.recipeViewModel.uiState.value.recipes.any { it.slug == "spaghetti-carbonara" })
+        assert(env.recipeViewModel.uiState.value.recipes.any { it.id == "recipe-carbonara" })
 
         composeRule.onRoot().captureRoboImage("$SNAPSHOT_DIR/RecipesPane_swipeToDelete.png")
     }

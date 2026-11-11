@@ -160,7 +160,7 @@ fun ImportRecipeSheet(
                     Button(
                         onClick = {
                             scope.launch {
-                                val recipe = recipeViewModel.createLocalRecipe(newRecipeName)
+                                val recipe = recipeViewModel.createLocalRecipe(newRecipeName) ?: return@launch
                                 onRecipeCreated(recipe)
                             }
                         },
@@ -218,16 +218,14 @@ fun DuplicateRecipeDialog(
             Column(horizontalAlignment = Alignment.End) {
                 TextButton(onClick = {
                     scope.launch {
-                        recipeViewModel.confirmImportUpdate()
-                        onResolved()
+                        if (recipeViewModel.confirmImportUpdate()) onResolved()
                     }
                 }) {
                     Text("Update Existing")
                 }
                 TextButton(onClick = {
                     scope.launch {
-                        recipeViewModel.confirmImportNew()
-                        onResolved()
+                        if (recipeViewModel.confirmImportNew()) onResolved()
                     }
                 }) {
                     Text("Import Anyway")

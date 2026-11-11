@@ -43,7 +43,7 @@ class RecipeViewModelTest {
         val dao = FakeLocalRecipeDao()
         val api = FakeMealieApiSource()
         val localStore = LocalRecipeStore(dao, kv, MealieJson, File(root, "files"))
-        val syncService = RecipeSyncService(File(root, "files"), kv, MealieApi(MealieClient(), MealieJson), MealieJson)
+        val syncService = RecipeSyncService(File(root, "files"), kv, api, MealieJson)
         val offlineStore = OfflineRecipeStore(File(root, "files"), kv, MealieJson)
         val cache = CacheService(File(root, "cache"), MealieJson)
         val parser = FakeRecipeParser()
@@ -91,6 +91,139 @@ class RecipeViewModelTest {
             )
         )
         env.localStore.saveRecipe(recipe("3", "Salad", ingredients = listOf(RecipeIngredient(food = IngredientFood(name = "tomato")))))
+    }
+
+    @Test
+    fun `same slug recipes have independent navigation editing favorites and deletion`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.vm.setLocalMode(true)
+        val first = recipe("first", "Soup", description = "first record")
+        val second = recipe("second", "Soup", description = "second record")
+        env.localStore.saveRecipe(first)
+        env.localStore.saveRecipe(second)
+        env.vm.loadRecipes(reset = true)
+        val routes = env.vm.uiState.value.recipes.associate { it.id to it.slug!! }
+        assertTrue(routes["first"] != routes["second"])
+        env.vm.loadRecipeDetail(routes.getValue("second"))
+        assertEquals("second record", env.vm.uiState.value.selectedRecipe?.description)
+        assertTrue(env.vm.updateRecipe("soup", second.copy(description = "edited second")))
+        assertEquals("second", env.vm.uiState.value.selectedRecipe?.id)
+        env.vm.toggleFavorite(routes.getValue("second"), "")
+        env.vm.loadFavorites(null)
+        assertFalse(env.vm.isFavorite(routes.getValue("first")))
+        assertTrue(env.vm.isFavorite(routes.getValue("second")))
+        assertTrue(env.vm.deleteRecipe(routes.getValue("second")))
+        assertEquals(listOf("first"), env.localStore.loadAllRecipes().map { it.id })
+    }
+
+    @Test
+    fun `local write failures preserve selected recipe and report failure`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.vm.setLocalMode(true)
+        val original = recipe("saved", "Soup", description = "original")
+        env.localStore.saveRecipe(original)
+        env.vm.loadRecipeDetail("soup")
+        env.dao.writeFailure = java.io.IOException("disk full")
+        assertFalse(env.vm.updateRecipe("soup", original.copy(description = "unsaved")))
+        assertEquals("original", env.vm.uiState.value.selectedRecipe?.description)
+        assertFalse(env.vm.deleteRecipe("soup"))
+        assertEquals("saved", env.vm.uiState.value.selectedRecipe?.id)
+        assertNull(env.vm.createLocalRecipe("Unsaved"))
+        assertTrue(env.vm.uiState.value.importMessage.contains("could not be saved"))
+        assertFalse(env.vm.uiState.value.errorMessage.isEmpty())
+        assertEquals(1, env.localStore.loadAllRecipes().size)
+        env.dao.writeFailure = null
+        assertTrue(env.vm.updateRecipe("soup", original.copy(description = "retried")))
+        assertEquals("retried", env.vm.uiState.value.selectedRecipe?.description)
+    }
+
+    @Test
+    fun `refresh fetches server additions edits and deletions after initial sync`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        val old = recipe("old", "Old")
+        env.api.getRecipesHandler = { _, _, _, _, _ -> RecipePaginatedResponse(items = listOf(RecipeSummary(id = "old", slug = "old", name = "Old"))) }
+        env.api.getRecipeHandler = { old }
+        env.syncService.syncAll()
+        env.vm.loadRecipes(reset = true)
+        val updated = recipe("new", "New", description = "fresh")
+        env.api.getRecipesHandler = { _, _, _, _, _ -> RecipePaginatedResponse(items = listOf(RecipeSummary(id = "new", slug = "new", name = "New"))) }
+        env.api.getRecipeHandler = { updated }
+        env.vm.refreshRecipes()
+        assertEquals(listOf("new"), env.vm.uiState.value.recipes.map { it.id })
+        env.vm.loadRecipeDetail("new")
+        assertEquals("fresh", env.vm.uiState.value.selectedRecipe?.description)
+        assertNull(env.syncService.loadRecipeBySlug("old"))
+    }
+
+    @Test
+    fun `legacy favorites migrate once and remain independent for colliding recipes`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.localStore.saveRecipe(recipe("first", "Soup"))
+        env.localStore.saveRecipe(recipe("second", "Soup"))
+        env.localStore.saveFavorites(setOf("soup"))
+        env.vm.setLocalMode(true)
+        env.vm.loadFavorites(null)
+        assertEquals(setOf("local:first", "local:second"), env.vm.uiState.value.favoriteRecipes)
+        env.vm.toggleFavorite("local:second", "")
+        env.vm.loadFavorites(null)
+        assertEquals(setOf("local:first"), env.vm.uiState.value.favoriteRecipes)
+        assertEquals(setOf("local:first"), env.localStore.loadFavorites())
+    }
+
+    @Test
+    fun `refresh updates open recipe and keeps cached content on network failure`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        var revision = "1"
+        env.api.getRecipesHandler = { _, _, _, _, _ -> RecipePaginatedResponse(items = listOf(
+            RecipeSummary(id = "soup", slug = "soup", name = "Soup $revision", dateUpdated = revision))) }
+        env.api.getRecipeHandler = { recipe("soup", "Soup", description = "revision $revision").copy(dateUpdated = revision) }
+        env.vm.refreshRecipes()
+        env.vm.loadRecipeDetail("soup")
+        revision = "2"
+        env.vm.refreshRecipes()
+        assertEquals("Soup 2", env.vm.uiState.value.recipes.single().name)
+        assertEquals("revision 2", env.vm.uiState.value.selectedRecipe?.description)
+        env.api.getRecipesHandler = { _, _, _, _, _ -> throw java.io.IOException("offline") }
+        env.vm.refreshRecipes()
+        assertEquals("Soup 2", env.vm.uiState.value.recipes.single().name)
+        assertEquals("revision 2", env.vm.uiState.value.selectedRecipe?.description)
+        assertTrue(env.vm.uiState.value.errorMessage.contains("Failed to refresh"))
+        assertFalse(env.syncService.isSyncing.value)
+    }
+
+    @Test
+    fun `failed duplicate writes retain pending import until retry succeeds`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        val original = recipe("old", "Soup", orgURL = "https://example.invalid/soup")
+        env.localStore.saveRecipe(original)
+        env.vm.setLocalMode(true)
+        env.parser.handler = { original.copy(id = "incoming", description = "new") }
+        env.vm.updateImportURL(original.orgURL!!)
+        env.vm.importFromURL()
+        env.dao.writeFailure = java.io.IOException("disk full")
+        assertFalse(env.vm.confirmImportNew())
+        assertFalse(env.vm.confirmImportUpdate())
+        assertNotNull(env.vm.uiState.value.pendingImportRecipe)
+        assertTrue(env.vm.uiState.value.showDuplicateAlert)
+        assertEquals(original.orgURL, env.vm.uiState.value.importURL)
+        assertEquals(listOf("old"), env.localStore.loadAllRecipes().map { it.id })
+        env.dao.writeFailure = null
+        assertTrue(env.vm.confirmImportUpdate())
+        assertNull(env.vm.uiState.value.pendingImportRecipe)
+        assertEquals("new", env.localStore.loadRecipe("soup")?.description)
+    }
+
+    @Test
+    fun `local image write failure is not reported as saved`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.vm.setLocalMode(true)
+        env.localStore.saveRecipe(recipe("saved", "Soup"))
+        env.vm.loadRecipeDetail("soup")
+        val blocker = File(tmp.root, "files/mealie_local")
+        blocker.parentFile!!.mkdirs()
+        blocker.writeText("not a directory")
+        assertFalse(env.vm.uploadImage("soup", byteArrayOf(1, 2, 3)))
+        assertTrue(env.vm.uiState.value.errorMessage.contains("could not be saved"))
     }
 
     // MARK: Local-mode search & filtering
@@ -504,7 +637,7 @@ class RecipeViewModelTest {
         val env = env()
         env.vm.setLocalMode(true)
 
-        val created = env.vm.createLocalRecipe("My Great Recipe!")
+        val created = requireNotNull(env.vm.createLocalRecipe("My Great Recipe!"))
 
         assertEquals("my-great-recipe", created.slug)
         assertNotNull(created.id)

@@ -53,8 +53,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.jackabee.mealie.data.model.Recipe
-import com.jackabee.mealie.data.model.RecipeIngredient
-import com.jackabee.mealie.data.model.RecipeInstruction
+import com.jackabee.mealie.data.model.IngredientDraft
+import com.jackabee.mealie.data.model.InstructionDraft
+import com.jackabee.mealie.data.model.editedAssociations
+import com.jackabee.mealie.ui.screens.common.ErrorBanner
 import com.jackabee.mealie.ui.viewmodel.RecipeViewModel
 import com.jackabee.mealie.ui.viewmodel.AppLog
 import kotlinx.coroutines.Dispatchers
@@ -69,8 +71,7 @@ private const val TAG = "EditRecipeDialog"
  * Recipe" flow (which creates an empty recipe first and then opens this
  * editor for it).
  *
- * Save builds note-only ingredients exactly like iOS (isFood=false,
- * disableAmount=true, display=text) and uploads the picked image afterwards.
+ * Save preserves untouched ingredient/step metadata and uploads a picked image afterwards.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,13 +93,13 @@ fun EditRecipeDialog(
     var performTime by remember { mutableStateOf(recipe.performTime ?: "") }
     var totalTime by remember { mutableStateOf(recipe.totalTime ?: "") }
     val ingredientTexts = remember {
-        SnapshotStateList<String>().apply {
-            addAll(recipe.recipeIngredient.orEmpty().map { it.displayText })
+        SnapshotStateList<IngredientDraft>().apply {
+            addAll(recipe.recipeIngredient.orEmpty().map { IngredientDraft(it) })
         }
     }
     val instructionTexts = remember {
-        SnapshotStateList<String>().apply {
-            addAll(recipe.recipeInstructions.orEmpty().map { it.text ?: "" })
+        SnapshotStateList<InstructionDraft>().apply {
+            addAll(recipe.recipeInstructions.orEmpty().map { InstructionDraft(it) })
         }
     }
     val selectedCategoryIds = remember {
@@ -133,53 +134,39 @@ fun EditRecipeDialog(
         if (name.isBlank() || isSaving) return
         isSaving = true
         scope.launch {
-            val ingredients = ingredientTexts.filter { it.isNotEmpty() }.map { text ->
-                RecipeIngredient(
-                    quantity = null,
-                    unit = null,
-                    food = null,
-                    note = text,
-                    isFood = false,
-                    disableAmount = true,
-                    display = text,
-                    title = null,
-                    originalText = text,
-                    referenceId = null,
+            try {
+                val ingredients = ingredientTexts.mapNotNull { it.value() }
+                val instructions = instructionTexts.mapNotNull { it.value() }
+                val categories = editedAssociations(recipe.recipeCategory.orEmpty(), recipeState.categories, selectedCategoryIds) { it.id }
+                val tags = editedAssociations(recipe.tags.orEmpty(), recipeState.tags, selectedTagIds) { it.id }
+
+                val updated = recipe.copy(
+                    name = name,
+                    description = description.ifEmpty { null },
+                    recipeCategory = categories.takeUnless { it.isEmpty() && recipe.recipeCategory == null },
+                    tags = tags.takeUnless { it.isEmpty() && recipe.tags == null },
+                    recipeYield = recipeYield.ifEmpty { null },
+                    recipeIngredient = ingredients.takeUnless { it.isEmpty() && recipe.recipeIngredient == null },
+                    recipeInstructions = instructions.takeUnless { it.isEmpty() && recipe.recipeInstructions == null },
+                    totalTime = totalTime.ifEmpty { null },
+                    prepTime = prepTime.ifEmpty { null },
+                    performTime = performTime.ifEmpty { null },
                 )
-            }
-            val instructions = instructionTexts.filter { it.isNotEmpty() }.map { text ->
-                RecipeInstruction(id = null, title = null, text = text, ingredientReferences = null)
-            }
-            val categories = recipeViewModel.uiState.value.categories
-                .filter { selectedCategoryIds.contains(it.id ?: "") }
-            val tags = recipeViewModel.uiState.value.tags
-                .filter { selectedTagIds.contains(it.id ?: "") }
 
-            val updated = recipe.copy(
-                name = name,
-                description = description.ifEmpty { null },
-                recipeCategory = categories.ifEmpty { null },
-                tags = tags.ifEmpty { null },
-                recipeYield = recipeYield.ifEmpty { null },
-                recipeIngredient = ingredients,
-                recipeInstructions = instructions,
-                totalTime = totalTime.ifEmpty { null },
-                prepTime = prepTime.ifEmpty { null },
-                performTime = performTime.ifEmpty { null },
-            )
+                var success = recipeViewModel.updateRecipe(recipe.slug ?: "", updated)
 
-            val success = recipeViewModel.updateRecipe(recipe.slug ?: "", updated)
+                val imageBytes = selectedImageBytes
+                if (success && imageBytes != null) {
+                    val uploadSlug = recipeViewModel.uiState.value.selectedRecipe?.slug
+                        ?: recipe.slug ?: ""
+                    success = recipeViewModel.uploadImage(uploadSlug, imageBytes)
+                }
 
-            val imageBytes = selectedImageBytes
-            if (success && imageBytes != null) {
-                val uploadSlug = recipeViewModel.uiState.value.selectedRecipe?.slug
-                    ?: recipe.slug ?: ""
-                recipeViewModel.uploadImage(uploadSlug, imageBytes)
-            }
-
-            isSaving = false
-            if (success) {
-                onDismiss()
+                if (success) {
+                    onDismiss()
+                }
+            } finally {
+                isSaving = false
             }
         }
     }
@@ -191,31 +178,38 @@ fun EditRecipeDialog(
         Surface(modifier = Modifier.fillMaxSize()) {
             Scaffold(
                 topBar = {
-                    TopAppBar(
-                        title = { Text("Edit Recipe") },
-                        navigationIcon = {
-                            TextButton(onClick = onDismiss) {
-                                Text("Cancel")
-                            }
-                        },
-                        actions = {
-                            if (isSaving) {
-                                CircularProgressIndicator(
-                                    strokeWidth = 2.dp,
-                                    modifier = Modifier
-                                        .padding(end = 16.dp)
-                                        .size(20.dp),
-                                )
-                            } else {
-                                TextButton(
-                                    onClick = { save() },
-                                    enabled = name.isNotBlank(),
-                                ) {
-                                    Text("Save")
+                    Column {
+                        TopAppBar(
+                            title = { Text("Edit Recipe") },
+                            navigationIcon = {
+                                TextButton(onClick = onDismiss) {
+                                    Text("Cancel")
                                 }
-                            }
-                        },
-                    )
+                            },
+                            actions = {
+                                if (isSaving) {
+                                    CircularProgressIndicator(
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier
+                                            .padding(end = 16.dp)
+                                            .size(20.dp),
+                                    )
+                                } else {
+                                    TextButton(
+                                        onClick = { save() },
+                                        enabled = name.isNotBlank(),
+                                    ) {
+                                        Text("Save")
+                                    }
+                                }
+                            },
+                        )
+                        ErrorBanner(
+                            message = recipeState.errorMessage,
+                            detail = recipeState.errorDetail,
+                            onDismiss = { recipeViewModel.dismissError() },
+                        )
+                    }
                 },
             ) { padding ->
                 Column(
@@ -371,8 +365,8 @@ fun EditRecipeDialog(
                     ingredientTexts.forEachIndexed { index, text ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             OutlinedTextField(
-                                value = text,
-                                onValueChange = { ingredientTexts[index] = it },
+                                value = text.text,
+                                onValueChange = { ingredientTexts[index] = text.copy(text = it) },
                                 label = { Text("Ingredient") },
                                 modifier = Modifier.weight(1f),
                             )
@@ -385,7 +379,7 @@ fun EditRecipeDialog(
                             }
                         }
                     }
-                    TextButton(onClick = { ingredientTexts.add("") }) {
+                    TextButton(onClick = { ingredientTexts.add(IngredientDraft()) }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = null,
@@ -406,8 +400,8 @@ fun EditRecipeDialog(
                                 modifier = Modifier.padding(end = 8.dp),
                             )
                             OutlinedTextField(
-                                value = text,
-                                onValueChange = { instructionTexts[index] = it },
+                                value = text.text,
+                                onValueChange = { instructionTexts[index] = text.copy(text = it) },
                                 label = { Text("Step") },
                                 modifier = Modifier.weight(1f),
                             )
@@ -420,7 +414,7 @@ fun EditRecipeDialog(
                             }
                         }
                     }
-                    TextButton(onClick = { instructionTexts.add("") }) {
+                    TextButton(onClick = { instructionTexts.add(InstructionDraft()) }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = null,

@@ -54,7 +54,25 @@ private let logger = Log(category: "LocalStore")
     }
 
     public func loadRecipe(slug: String) -> Recipe? {
-        store?.loadRecipe(slug: slug)
+        if slug.hasPrefix("local:") { return store?.loadRecipe(id: String(slug.dropFirst(6))) }
+        return store?.loadRecipe(slug: slug)
+    }
+
+    public func navigationIdentifier(_ recipe: Recipe) -> String? {
+        recipe.id.map { "local:\($0)" } ?? recipe.slug
+    }
+
+    public func loadNavigationFavorites() throws -> Set<String> {
+        let previous = loadFavorites()
+        let recipes = loadAllRecipes()
+        var migrated = Set<String>()
+        for key in previous {
+            let matches = key.hasPrefix("local:") ? [] : recipes.filter { $0.slug == key }
+            if matches.isEmpty { migrated.insert(key) }
+            else { migrated.formUnion(matches.compactMap { navigationIdentifier($0) }) }
+        }
+        if migrated != previous { try saveFavorites(migrated) }
+        return migrated
     }
 
     public func saveRecipe(_ recipe: Recipe) throws {

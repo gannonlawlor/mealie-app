@@ -13,6 +13,8 @@ import com.jackabee.mealie.data.store.CacheService
 import com.jackabee.mealie.data.store.LocalGroceryStore
 import com.jackabee.mealie.data.store.PendingGroceryItem
 import com.jackabee.mealie.di.AppContainer
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,37 +72,40 @@ class ShoppingViewModel(
         refreshPendingCounts()
     }
 
+    private val uploadMutex = Mutex()
+
     suspend fun syncPendingItems(listId: String) {
-        val pending = withContext(ioDispatcher) { groceryStore.pendingItems(listId) }
-        if (pending.isEmpty()) return
-
-        _uiState.update { it.copy(isSyncing = true, syncMessage = "") }
-        var successCount = 0
-
-        for (item in pending) {
-            val createItem = CreateShoppingListItem(
-                shoppingListId = listId,
-                note = item.note,
-                quantity = item.quantity,
-            )
-            try {
-                withContext(ioDispatcher) { api.createShoppingListItem(createItem) }
-                successCount += 1
-            } catch (e: Exception) {
-                AppLog.w(TAG, "Failed to sync pending item '${item.note}': $e", e)
+        // Claim the drain before the first suspension, including queue reads.
+        if (!uploadMutex.tryLock()) return
+        try {
+            val pending = withContext(ioDispatcher) { groceryStore.pendingItems(listId) }
+            if (pending.isEmpty()) return
+            _uiState.update { it.copy(isSyncing = true, syncMessage = "") }
+            var successCount = 0
+            for (item in pending) {
+                try {
+                    withContext(ioDispatcher) {
+                        api.createShoppingListItem(CreateShoppingListItem(
+                            shoppingListId = listId, note = item.note, quantity = item.quantity))
+                        groceryStore.acknowledge(item.id, listId)
+                    }
+                    successCount++
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLog.w(TAG, "Failed to sync pending item: $e", e)
+                }
             }
+            val message = if (successCount == pending.size) "Uploaded $successCount items"
+                else "Uploaded $successCount/${pending.size} items"
+            refreshPendingCounts()
+            _uiState.update { it.copy(syncMessage = message) }
+            loadShoppingList(listId)
+        } finally {
+            refreshPendingCounts()
+            _uiState.update { it.copy(isSyncing = false) }
+            uploadMutex.unlock()
         }
-
-        val message = if (successCount == pending.size) {
-            withContext(ioDispatcher) { groceryStore.clearPendingItems(listId) }
-            "Uploaded $successCount items"
-        } else {
-            "Uploaded $successCount/${pending.size} items"
-        }
-
-        refreshPendingCounts()
-        _uiState.update { it.copy(isSyncing = false, syncMessage = message) }
-        loadShoppingList(listId)
     }
 
     // MARK: Lists

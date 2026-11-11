@@ -14,8 +14,8 @@ struct EditRecipeView: View {
     @State var prepTime: String = ""
     @State var performTime: String = ""
     @State var totalTime: String = ""
-    @State var ingredientTexts: [String] = []
-    @State var instructionTexts: [String] = []
+    @State var ingredientTexts: [IngredientDraft] = []
+    @State var instructionTexts: [InstructionDraft] = []
     @State var selectedCategoryIds: Set<String> = []
     @State var selectedTagIds: Set<String> = []
     @State var isSaving = false
@@ -145,34 +145,34 @@ struct EditRecipeView: View {
                 }
 
                 Section("Ingredients") {
-                    ForEach(Array(ingredientTexts.enumerated()), id: \.offset) { index, _ in
+                    ForEach(Array(ingredientTexts.enumerated()), id: \.element.id) { index, _ in
                         HStack {
-                            TextField("Ingredient", text: $ingredientTexts[index])
+                            TextField("Ingredient", text: $ingredientTexts[index].text)
                             Button(action: { ingredientTexts.remove(at: index) }) {
                                 Image(systemName: "minus.circle")
                                     .foregroundStyle(.red)
                             }
                         }
                     }
-                    Button(action: { ingredientTexts.append("") }) {
+                    Button(action: { ingredientTexts.append(IngredientDraft()) }) {
                         Label("Add Ingredient", systemImage: "plus")
                     }
                 }
 
                 Section("Instructions") {
-                    ForEach(Array(instructionTexts.enumerated()), id: \.offset) { index, _ in
+                    ForEach(Array(instructionTexts.enumerated()), id: \.element.id) { index, _ in
                         HStack(alignment: .top) {
                             Text("\(index + 1).")
                                 .foregroundStyle(.secondary)
                                 .frame(width: 24)
-                            TextField("Step", text: $instructionTexts[index])
+                            TextField("Step", text: $instructionTexts[index].text)
                             Button(action: { instructionTexts.remove(at: index) }) {
                                 Image(systemName: "minus.circle")
                                     .foregroundStyle(.red)
                             }
                         }
                     }
-                    Button(action: { instructionTexts.append("") }) {
+                    Button(action: { instructionTexts.append(InstructionDraft()) }) {
                         Label("Add Step", systemImage: "plus")
                     }
                 }
@@ -217,10 +217,10 @@ struct EditRecipeView: View {
         totalTime = recipe.totalTime ?? ""
 
         if let ingredients = recipe.recipeIngredient {
-            ingredientTexts = ingredients.map { $0.displayText }
+            ingredientTexts = ingredients.map { IngredientDraft($0) }
         }
         if let instructions = recipe.recipeInstructions {
-            instructionTexts = instructions.map { $0.text ?? "" }
+            instructionTexts = instructions.map { InstructionDraft($0) }
         }
         if let cats = recipe.recipeCategory {
             selectedCategoryIds = Set(cats.compactMap { $0.id })
@@ -233,22 +233,12 @@ struct EditRecipeView: View {
     func save() async {
         isSaving = true
 
-        let ingredients = ingredientTexts.filter { !$0.isEmpty }.map { text in
-            RecipeIngredient(
-                quantity: nil, unit: nil, food: nil,
-                note: text, isFood: false, disableAmount: true,
-                display: text, title: nil, originalText: text, referenceId: nil
-            )
-        }
-
-        let instructions = instructionTexts.filter { !$0.isEmpty }.enumerated().map { index, text in
-            RecipeInstruction(
-                id: nil, title: nil, text: text, ingredientReferences: nil
-            )
-        }
-
-        let selectedCategories = recipeVM.categories.filter { selectedCategoryIds.contains($0.id ?? "") }
-        let selectedTags = recipeVM.tags.filter { selectedTagIds.contains($0.id ?? "") }
+        let ingredients = ingredientTexts.compactMap(\.value)
+        let instructions = instructionTexts.compactMap(\.value)
+        let selectedCategories = editedAssociations(original: recipe.recipeCategory ?? [],
+            available: recipeVM.categories, selected: Set(selectedCategoryIds.map { Optional($0) }))
+        let selectedTags = editedAssociations(original: recipe.tags ?? [],
+            available: recipeVM.tags, selected: Set(selectedTagIds.map { Optional($0) }))
 
         let updated = Recipe(
             id: recipe.id,
@@ -256,13 +246,13 @@ struct EditRecipeView: View {
             name: name,
             description: description.isEmpty ? nil : description,
             image: recipe.image,
-            recipeCategory: selectedCategories.isEmpty ? nil : selectedCategories,
-            tags: selectedTags.isEmpty ? nil : selectedTags,
+            recipeCategory: selectedCategories.isEmpty && recipe.recipeCategory == nil ? nil : selectedCategories,
+            tags: selectedTags.isEmpty && recipe.tags == nil ? nil : selectedTags,
             tools: recipe.tools,
             rating: recipe.rating,
             recipeYield: recipeYield.isEmpty ? nil : recipeYield,
-            recipeIngredient: ingredients,
-            recipeInstructions: instructions,
+            recipeIngredient: ingredients.isEmpty && recipe.recipeIngredient == nil ? nil : ingredients,
+            recipeInstructions: instructions.isEmpty && recipe.recipeInstructions == nil ? nil : instructions,
             totalTime: totalTime.isEmpty ? nil : totalTime,
             prepTime: prepTime.isEmpty ? nil : prepTime,
             performTime: performTime.isEmpty ? nil : performTime,

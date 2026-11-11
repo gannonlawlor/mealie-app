@@ -45,12 +45,14 @@ class LocalGroceryStore(
     fun pendingItems(listId: String): List<PendingGroceryItem> =
         loadAllPending()[listId] ?: emptyList()
 
+    @Synchronized
     fun addPendingItem(item: PendingGroceryItem, listId: String) {
         val all = loadAllPending().toMutableMap()
         all[listId] = (all[listId] ?: emptyList()) + item
         save(all)
     }
 
+    @Synchronized
     fun removePendingItem(index: Int, listId: String) {
         val all = loadAllPending().toMutableMap()
         val items = all[listId]?.toMutableList() ?: return
@@ -60,6 +62,15 @@ class LocalGroceryStore(
         save(all)
     }
 
+    @Synchronized
+    fun acknowledge(itemId: String, listId: String) {
+        val all = loadAllPending().toMutableMap()
+        val remaining = all[listId].orEmpty().filterNot { it.id == itemId }
+        if (remaining.isEmpty()) all.remove(listId) else all[listId] = remaining
+        save(all)
+    }
+
+    @Synchronized
     fun clearPendingItems(listId: String) {
         val all = loadAllPending().toMutableMap()
         all.remove(listId)

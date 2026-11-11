@@ -15,10 +15,17 @@ private let logger = Log(category: "Shopping")
     public var isSyncing: Bool = false
     public var syncMessage: String = ""
 
-    public init() {}
+    private let api: MealieAPI
+    private let groceryStore: LocalGroceryStore
+
+    public init() { api = .shared; groceryStore = .shared }
+    init(api: MealieAPI, groceryStore: LocalGroceryStore) {
+        self.api = api
+        self.groceryStore = groceryStore
+    }
 
     public func refreshPendingCounts() {
-        let all = LocalGroceryStore.shared.loadAllPending()
+        let all = groceryStore.loadAllPending()
         var counts: [String: Int] = [:]
         for (key, items) in all {
             counts[key] = items.count
@@ -36,42 +43,44 @@ private let logger = Log(category: "Shopping")
             note: ingredient.displayText,
             quantity: ingredient.quantity
         )
-        LocalGroceryStore.shared.addPendingItem(item, forListId: listId)
+        groceryStore.addPendingItem(item, forListId: listId)
         addedItemCount += 1
         refreshPendingCounts()
     }
 
     public func syncPendingItems(forListId listId: String) async {
-        let pending = LocalGroceryStore.shared.pendingItems(forListId: listId)
+        guard !isSyncing else { return }
+        let pending = groceryStore.pendingItems(forListId: listId)
         guard !pending.isEmpty else { return }
 
         isSyncing = true
+        defer { isSyncing = false }
         syncMessage = ""
         var successCount = 0
 
         for item in pending {
+            if Task.isCancelled { break }
             let createItem = CreateShoppingListItem(
                 shoppingListId: listId,
                 note: item.note,
                 quantity: item.quantity
             )
             do {
-                let _ = try await MealieAPI.shared.createShoppingListItem(createItem)
+                let _ = try await api.createShoppingListItem(createItem)
+                groceryStore.acknowledge(itemID: item.id, forListId: listId)
                 successCount += 1
             } catch {
-                logger.error("Failed to sync pending item '\(item.note)': \(error)")
+                logger.error("Failed to sync pending item: \(error)")
             }
         }
 
         if successCount == pending.count {
-            LocalGroceryStore.shared.clearPendingItems(forListId: listId)
             syncMessage = "Uploaded \(successCount) items"
         } else {
             syncMessage = "Uploaded \(successCount)/\(pending.count) items"
         }
 
         refreshPendingCounts()
-        isSyncing = false
         await loadShoppingList(id: listId)
     }
 
@@ -85,7 +94,7 @@ private let logger = Log(category: "Shopping")
         errorDetail = ""
 
         do {
-            let response = try await MealieAPI.shared.getShoppingLists()
+            let response = try await api.getShoppingLists()
             shoppingLists = response.items
             CacheService.shared.saveShoppingLists(response.items)
             isLoading = false
@@ -106,7 +115,7 @@ private let logger = Log(category: "Shopping")
 
         isLoading = selectedList == nil
         do {
-            let list = try await MealieAPI.shared.getShoppingList(id: id)
+            let list = try await api.getShoppingList(id: id)
             selectedList = list
             CacheService.shared.saveShoppingListDetail(list, id: id)
             isLoading = false
@@ -122,7 +131,7 @@ private let logger = Log(category: "Shopping")
 
     public func createShoppingList(name: String) async {
         do {
-            let newList = try await MealieAPI.shared.createShoppingList(name: name)
+            let newList = try await api.createShoppingList(name: name)
             shoppingLists.append(newList)
         } catch {
             errorMessage = "Failed to create shopping list."
@@ -133,7 +142,7 @@ private let logger = Log(category: "Shopping")
 
     public func deleteShoppingList(id: String) async {
         do {
-            try await MealieAPI.shared.deleteShoppingList(id: id)
+            try await api.deleteShoppingList(id: id)
             shoppingLists.removeAll { $0.id == id }
         } catch {
             errorMessage = "Failed to delete shopping list."
@@ -151,7 +160,7 @@ private let logger = Log(category: "Shopping")
         )
 
         do {
-            let _ = try await MealieAPI.shared.createShoppingListItem(item)
+            let _ = try await api.createShoppingListItem(item)
             newItemNote = ""
             await loadShoppingList(id: listId)
         } catch {
@@ -164,7 +173,7 @@ private let logger = Log(category: "Shopping")
     public func deleteItem(_ item: ShoppingListItem) async {
         guard let itemId = item.id else { return }
         do {
-            try await MealieAPI.shared.deleteShoppingListItem(id: itemId)
+            try await api.deleteShoppingListItem(id: itemId)
             if let listId = item.shoppingListId {
                 await loadShoppingList(id: listId)
             }
@@ -180,7 +189,7 @@ private let logger = Log(category: "Shopping")
         updated.checked = !(item.checked ?? false)
 
         do {
-            try await MealieAPI.shared.updateShoppingListItem(updated)
+            try await api.updateShoppingListItem(updated)
             if let listId = item.shoppingListId {
                 await loadShoppingList(id: listId)
             }
@@ -198,7 +207,7 @@ private let logger = Log(category: "Shopping")
             quantity: ingredient.quantity
         )
         do {
-            let _ = try await MealieAPI.shared.createShoppingListItem(item)
+            let _ = try await api.createShoppingListItem(item)
             addedItemCount += 1
             return true
         } catch {
@@ -211,7 +220,7 @@ private let logger = Log(category: "Shopping")
 
     public func addRecipeIngredients(listId: String, recipeId: String) async {
         do {
-            try await MealieAPI.shared.addRecipeToShoppingList(listId: listId, recipeId: recipeId)
+            try await api.addRecipeToShoppingList(listId: listId, recipeId: recipeId)
             await loadShoppingList(id: listId)
         } catch {
             errorMessage = "Failed to add recipe ingredients."

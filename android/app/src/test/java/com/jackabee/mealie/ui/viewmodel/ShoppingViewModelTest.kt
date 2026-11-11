@@ -208,7 +208,7 @@ class ShoppingViewModelTest {
     }
 
     @Test
-    fun `syncPendingItems keeps queue and reports partial success`() = runTest(mainRule.dispatcher) {
+    fun `syncPendingItems retries only failed items after partial success`() = runTest(mainRule.dispatcher) {
         val env = env()
         env.vm.addIngredientLocally("l1", RecipeIngredient(note = "good"))
         env.vm.addIngredientLocally("l1", RecipeIngredient(note = "bad"))
@@ -222,9 +222,34 @@ class ShoppingViewModelTest {
         val state = env.vm.uiState.value
         assertEquals("Uploaded 1/2 items", state.syncMessage)
         assertFalse(state.isSyncing)
-        // Queue not cleared on partial success
-        assertEquals(2, env.groceryStore.pendingItems("l1").size)
-        assertEquals(2, env.vm.pendingCount("l1"))
+        // Acknowledged entries must not be posted again on retry.
+        assertEquals(listOf("bad"), env.groceryStore.pendingItems("l1").map { it.note })
+        assertEquals(1, env.vm.pendingCount("l1"))
+        env.api.createShoppingListItemHandler = { item ->
+            ShoppingListItem(id = "retry", shoppingListId = item.shoppingListId, note = item.note)
+        }
+        env.vm.syncPendingItems("l1")
+        assertEquals(listOf("good", "bad"), env.api.createdShoppingListItems.map { it.note })
+        assertTrue(env.groceryStore.pendingItems("l1").isEmpty())
+    }
+
+    @Test
+    fun `upload keeps items added while request is suspended and ignores another drain`() = runTest(mainRule.dispatcher) {
+        val env = env()
+        env.vm.addIngredientLocally("l1", RecipeIngredient(note = "first"))
+        var calls = 0
+        env.api.createShoppingListItemHandler = { item ->
+            calls++
+            if (calls == 1) {
+                env.vm.addIngredientLocally("l1", RecipeIngredient(note = "later"))
+                env.vm.syncPendingItems("l1")
+            }
+            ShoppingListItem(id = "created", shoppingListId = item.shoppingListId, note = item.note)
+        }
+        env.vm.syncPendingItems("l1")
+        assertEquals(1, calls)
+        assertEquals(listOf("later"), env.groceryStore.pendingItems("l1").map { it.note })
+        assertFalse(env.vm.uiState.value.isSyncing)
     }
 
     @Test

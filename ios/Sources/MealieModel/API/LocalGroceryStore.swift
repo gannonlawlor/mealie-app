@@ -19,10 +19,12 @@ public class LocalGroceryStore: @unchecked Sendable {
 
     private let storageKey = "mealie_pending_grocery_items"
 
-    private init() {}
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     public func loadAllPending() -> [String: [PendingGroceryItem]] {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return [:] }
+        guard let data = defaults.data(forKey: storageKey) else { return [:] }
         do {
             return try JSONDecoder().decode([String: [PendingGroceryItem]].self, from: data)
         } catch {
@@ -55,6 +57,14 @@ public class LocalGroceryStore: @unchecked Sendable {
         save(all)
     }
 
+    public func acknowledge(itemID: String, forListId listId: String) {
+        var all = loadAllPending()
+        let remaining = (all[listId] ?? []).filter { $0.id != itemID }
+        if remaining.isEmpty { all.removeValue(forKey: listId) }
+        else { all[listId] = remaining }
+        save(all)
+    }
+
     public func clearPendingItems(forListId listId: String) {
         var all = loadAllPending()
         all.removeValue(forKey: listId)
@@ -73,7 +83,7 @@ public class LocalGroceryStore: @unchecked Sendable {
     private func save(_ data: [String: [PendingGroceryItem]]) {
         do {
             let encoded = try JSONEncoder().encode(data)
-            UserDefaults.standard.set(encoded, forKey: storageKey)
+            defaults.set(encoded, forKey: storageKey)
         } catch {
             print("Failed to encode pending grocery items: \(error)")
         }

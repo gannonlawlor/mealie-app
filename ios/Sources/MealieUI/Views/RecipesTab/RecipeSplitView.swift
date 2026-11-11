@@ -228,7 +228,7 @@ struct RecipeSplitView: View {
             }
         }
         .refreshable {
-            await recipeVM.loadRecipes(reset: true)
+            await recipeVM.refreshRecipes()
         }
     }
 }

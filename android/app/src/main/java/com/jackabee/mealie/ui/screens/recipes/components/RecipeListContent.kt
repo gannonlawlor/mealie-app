@@ -195,8 +195,8 @@ fun RecipeListContent(
             onRefresh = {
                 scope.launch {
                     isRefreshing = true
-                    recipeViewModel.loadRecipes(reset = true)
-                    isRefreshing = false
+                    try { recipeViewModel.refreshRecipes() }
+                    finally { isRefreshing = false }
                 }
             },
             modifier = Modifier.weight(1f),

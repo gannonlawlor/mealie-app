@@ -36,9 +36,6 @@ import com.jackabee.mealie.ui.viewmodel.AuthViewModel
 import com.jackabee.mealie.ui.viewmodel.MealPlanViewModel
 import com.jackabee.mealie.ui.viewmodel.RecipeViewModel
 import com.jackabee.mealie.ui.viewmodel.ShoppingViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -57,13 +54,6 @@ object Routes {
 
 /** Top-level navigation destinations (bottom bar on compact, rail on medium/expanded). */
 private data class TopDestination(val route: String, val label: String, val icon: ImageVector)
-
-/**
- * Detached scope for the background recipe sync, mirroring the Swift
- * `Task.detached { await RecipeSyncService.shared.syncAll() }` — the sync
- * should outlive the composition that started it.
- */
-private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /**
  * Root of the UI: shows the login flow when unauthenticated, otherwise the
@@ -102,7 +92,7 @@ fun AppRoot(
             recipeViewModel.loadFavorites(authViewModel.uiState.value.currentUser)
             recipeViewModel.loadOfflineIds()
             recipeViewModel.loadRecipes(reset = true)
-            syncScope.launch { container.recipeSyncService.syncAll() }
+            recipeViewModel.refreshRecipes()
         } else {
             recipeViewModel.loadFavorites(null)
             recipeViewModel.loadRecipes(reset = true)

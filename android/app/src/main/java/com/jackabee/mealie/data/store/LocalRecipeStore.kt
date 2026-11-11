@@ -33,10 +33,25 @@ class LocalRecipeStore(
 
     suspend fun loadAllRecipes(): List<Recipe> = dao.loadAll().mapNotNull { decode(it) }
 
-    suspend fun loadRecipe(slug: String): Recipe? = dao.bySlug(slug)?.let { decode(it) }
+    suspend fun loadRecipe(slug: String): Recipe? =
+        (if (slug.startsWith("local:")) dao.byId(slug.removePrefix("local:")) else dao.bySlug(slug))?.let { decode(it) }
+
+    fun navigationIdentifier(recipe: Recipe): String? = recipe.id?.let { "local:$it" } ?: recipe.slug
+
+    /** Translate legacy name-based favorites before an edit or delete can remove their lookup. */
+    suspend fun loadNavigationFavorites(): Set<String> {
+        val previous = loadFavorites()
+        val recipes = loadAllRecipes()
+        val migrated = previous.flatMap { key ->
+            if (key.startsWith("local:")) listOf(key)
+            else recipes.filter { it.slug == key }.mapNotNull { navigationIdentifier(it) }.ifEmpty { listOf(key) }
+        }.toSet()
+        if (migrated != previous) saveFavorites(migrated)
+        return migrated
+    }
 
     suspend fun saveRecipe(recipe: Recipe) {
-        val id = recipe.id ?: return
+        val id = requireNotNull(recipe.id) { "This recipe has no identifier and could not be saved." }
         dao.upsert(
             LocalRecipeEntity(
                 id = id,

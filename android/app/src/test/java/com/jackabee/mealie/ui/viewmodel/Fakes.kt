@@ -227,11 +227,14 @@ class FakeMealieApiSource : MealieApiSource {
 class FakeLocalRecipeDao : LocalRecipeDao {
     private val rows = LinkedHashMap<String, LocalRecipeEntity>()
     var loadAllCalls = 0
+    var writeFailure: Exception? = null
 
     override suspend fun loadAll(): List<LocalRecipeEntity> {
         loadAllCalls += 1
         return rows.values.toList()
     }
+
+    override suspend fun byId(id: String): LocalRecipeEntity? = rows[id]
 
     override suspend fun bySlug(slug: String): LocalRecipeEntity? =
         rows.values.firstOrNull { it.slug == slug }
@@ -244,10 +247,12 @@ class FakeLocalRecipeDao : LocalRecipeDao {
         rows.values.filter { it.name?.contains(name, ignoreCase = true) == true }
 
     override suspend fun upsert(entity: LocalRecipeEntity) {
+        writeFailure?.let { throw it }
         rows[entity.id] = entity
     }
 
     override suspend fun delete(id: String) {
+        writeFailure?.let { throw it }
         rows.remove(id)
     }
 

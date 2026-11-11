@@ -46,7 +46,7 @@ struct RecipeListView: View {
             recipeVM.debouncedSearch()
         }
         .refreshable {
-            await recipeVM.loadRecipes(reset: true)
+            await recipeVM.refreshRecipes()
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

@@ -28,6 +28,9 @@ interface LocalRecipeDao {
     @Query("SELECT * FROM local_recipes")
     suspend fun loadAll(): List<LocalRecipeEntity>
 
+    @Query("SELECT * FROM local_recipes WHERE id = :id LIMIT 1")
+    suspend fun byId(id: String): LocalRecipeEntity?
+
     @Query("SELECT * FROM local_recipes WHERE slug = :slug LIMIT 1")
     suspend fun bySlug(slug: String): LocalRecipeEntity?
 

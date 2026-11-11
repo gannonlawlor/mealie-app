@@ -18,6 +18,7 @@ import com.jackabee.mealie.data.store.LocalRecipeStore
 import com.jackabee.mealie.data.store.OfflineRecipeStore
 import com.jackabee.mealie.data.store.RecipeSyncService
 import com.jackabee.mealie.di.AppContainer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,9 +86,23 @@ class RecipeViewModel(
     /** Search debounce, mirroring the Swift `searchTask`. */
     private var searchJob: Job? = null
 
+    private suspend fun persistLocalChange(action: suspend () -> Unit): Boolean = try {
+        withContext(ioDispatcher) { action() }
+        _uiState.update { it.copy(errorMessage = "", errorDetail = "") }
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        AppLog.w(TAG, "Local recipe changes could not be saved: $e", e)
+        _uiState.update { it.copy(errorMessage = "Your recipe changes could not be saved. Please try again.", errorDetail = errorDetail(e)) }
+        false
+    }
+
     // MARK: State setters (two-way bindings in Swift)
 
     fun setLocalMode(isLocalMode: Boolean) = _uiState.update { it.copy(isLocalMode = isLocalMode) }
+
+    fun dismissError() = _uiState.update { it.copy(errorMessage = "", errorDetail = "") }
 
     fun updateImportURL(value: String) = _uiState.update { it.copy(importURL = value) }
 
@@ -101,6 +116,23 @@ class RecipeViewModel(
         debouncedSearch()
     }
 
+    suspend fun refreshRecipes() {
+        if (_uiState.value.isLocalMode) {
+            loadRecipes(reset = true)
+            return
+        }
+        val success = syncService.syncAll()
+        loadRecipes(reset = true)
+        _uiState.update { it.copy(errorMessage = if (success) "" else "Failed to refresh recipes. Showing saved recipes.", errorDetail = "") }
+        if (success) {
+            val slug = _uiState.value.selectedRecipe?.slug
+            if (slug != null) {
+                val refreshed = withContext(ioDispatcher) { syncService.loadRecipeBySlug(slug) }
+                _uiState.update { it.copy(selectedRecipe = refreshed) }
+            }
+        }
+    }
+
     // MARK: Loading
 
     suspend fun loadRecipes(reset: Boolean = false) {
@@ -109,7 +141,7 @@ class RecipeViewModel(
         if (state.isLocalMode) {
             _uiState.update { it.copy(isLoading = true) }
             val allRecipes = withContext(ioDispatcher) { localStore.loadAllRecipes() }
-            val summaries = filterAndSort(allRecipes, state).map { it.toSummary() }
+            val summaries = filterAndSort(allRecipes, state).map { it.toSummary().copy(slug = localStore.navigationIdentifier(it)) }
             _uiState.update {
                 it.copy(recipes = summaries, totalPages = 1, currentPage = 1, isLoading = false)
             }
@@ -259,9 +291,9 @@ class RecipeViewModel(
 
     suspend fun deleteRecipe(slug: String): Boolean {
         if (_uiState.value.isLocalMode) {
-            withContext(ioDispatcher) {
+            if (!persistLocalChange {
                 localStore.loadRecipe(slug)?.id?.let { localStore.deleteRecipe(it) }
-            }
+            }) return false
             _uiState.update { it.copy(selectedRecipe = null) }
             loadRecipes(reset = true)
             return true
@@ -401,18 +433,22 @@ class RecipeViewModel(
         return recipe != null
     }
 
-    suspend fun confirmImportNew() {
-        val recipe = _uiState.value.pendingImportRecipe ?: return
-        withContext(ioDispatcher) { localStore.saveRecipe(recipe) }
+    suspend fun confirmImportNew(): Boolean {
+        val recipe = _uiState.value.pendingImportRecipe ?: return false
+        if (!persistLocalChange { localStore.saveRecipe(recipe) }) {
+            _uiState.update { it.copy(importMessage = it.errorMessage) }
+            return false
+        }
         _uiState.update { it.copy(importMessage = "Recipe imported successfully!", importURL = "") }
         clearDuplicateState()
         loadRecipes(reset = true)
+        return true
     }
 
-    suspend fun confirmImportUpdate() {
+    suspend fun confirmImportUpdate(): Boolean {
         val state = _uiState.value
-        val pending = state.pendingImportRecipe ?: return
-        val existing = state.duplicateRecipe ?: return
+        val pending = state.pendingImportRecipe ?: return false
+        val existing = state.duplicateRecipe ?: return false
         val now = isoNow()
         val updated = pending.copy(
             id = existing.id,
@@ -422,10 +458,14 @@ class RecipeViewModel(
             createdAt = existing.createdAt,
             updatedAt = now,
         )
-        withContext(ioDispatcher) { localStore.saveRecipe(updated) }
+        if (!persistLocalChange { localStore.saveRecipe(updated) }) {
+            _uiState.update { it.copy(importMessage = it.errorMessage) }
+            return false
+        }
         _uiState.update { it.copy(importMessage = "Recipe updated successfully!", importURL = "") }
         clearDuplicateState()
         loadRecipes(reset = true)
+        return true
     }
 
     fun clearDuplicateState() = _uiState.update {
@@ -467,9 +507,17 @@ class RecipeViewModel(
 
     // MARK: Favorites
 
-    fun loadFavorites(user: User?) {
+    suspend fun loadFavorites(user: User?) {
         if (_uiState.value.isLocalMode) {
-            _uiState.update { it.copy(favoriteRecipes = localStore.loadFavorites()) }
+            try {
+                val favorites = withContext(ioDispatcher) { localStore.loadNavigationFavorites() }
+                _uiState.update { it.copy(favoriteRecipes = favorites) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(TAG, "Failed to load local favorites: $e", e)
+                _uiState.update { it.copy(errorMessage = "Failed to load favorites.", errorDetail = errorDetail(e)) }
+            }
             return
         }
         val slugs = user?.favoriteRecipes ?: return
@@ -482,12 +530,10 @@ class RecipeViewModel(
         val wasFavorite = _uiState.value.favoriteRecipes.contains(slug)
 
         if (_uiState.value.isLocalMode) {
-            if (wasFavorite) {
-                _uiState.update { it.copy(favoriteRecipes = it.favoriteRecipes - slug) }
-                withContext(ioDispatcher) { localStore.removeFavorite(slug) }
-            } else {
-                _uiState.update { it.copy(favoriteRecipes = it.favoriteRecipes + slug) }
-                withContext(ioDispatcher) { localStore.addFavorite(slug) }
+            if (persistLocalChange {
+                if (wasFavorite) localStore.removeFavorite(slug) else localStore.addFavorite(slug)
+            }) {
+                _uiState.update { it.copy(favoriteRecipes = if (wasFavorite) it.favoriteRecipes - slug else it.favoriteRecipes + slug) }
             }
             return
         }
@@ -518,7 +564,7 @@ class RecipeViewModel(
 
     suspend fun updateRecipe(slug: String, data: Recipe): Boolean {
         if (_uiState.value.isLocalMode) {
-            withContext(ioDispatcher) { localStore.saveRecipe(data) }
+            if (!persistLocalChange { localStore.saveRecipe(data) }) return false
             _uiState.update { it.copy(selectedRecipe = data) }
             loadRecipes(reset = true)
             return true
@@ -580,10 +626,10 @@ class RecipeViewModel(
 
     suspend fun uploadImage(slug: String, imageData: ByteArray): Boolean {
         if (_uiState.value.isLocalMode) {
-            _uiState.value.selectedRecipe?.id?.let { id ->
-                withContext(ioDispatcher) { localStore.saveImage(imageData, id) }
+            val id = _uiState.value.selectedRecipe?.id ?: return false
+            return persistLocalChange {
+                check(localStore.saveImage(imageData, id).isNotEmpty()) { "The recipe image could not be saved." }
             }
-            return true
         }
 
         return try {
@@ -602,7 +648,7 @@ class RecipeViewModel(
 
     // MARK: Local create
 
-    suspend fun createLocalRecipe(name: String): Recipe {
+    suspend fun createLocalRecipe(name: String): Recipe? {
         val now = isoNow()
         val recipe = Recipe(
             id = UUID.randomUUID().toString(),
@@ -613,7 +659,10 @@ class RecipeViewModel(
             createdAt = now,
             updatedAt = now,
         )
-        withContext(ioDispatcher) { localStore.saveRecipe(recipe) }
+        if (!persistLocalChange { localStore.saveRecipe(recipe) }) {
+            _uiState.update { it.copy(importMessage = it.errorMessage) }
+            return null
+        }
         loadRecipes(reset = true)
         return recipe
     }

@@ -3,6 +3,7 @@ import Foundation
 public protocol RecipePersistence: AnyObject, Sendable {
     // Recipes
     func loadAllRecipes() -> [Recipe]
+    func loadRecipe(id: String) -> Recipe?
     func loadRecipe(slug: String) -> Recipe?
     func saveRecipe(_ recipe: Recipe) throws
     func deleteRecipe(id: String) throws
@@ -30,4 +31,8 @@ public enum RecipeStorageError: LocalizedError {
         case .missingRecipeID: return "This recipe has no identifier and could not be saved."
         }
     }
+}
+
+public extension RecipePersistence {
+    func loadRecipe(id: String) -> Recipe? { loadAllRecipes().first { $0.id == id } }
 }

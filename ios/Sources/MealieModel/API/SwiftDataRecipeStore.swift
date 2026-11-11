@@ -87,6 +87,12 @@ public class SwiftDataRecipeStore: RecipePersistence, @unchecked Sendable {
         return entities.compactMap { decodeRecipe(from: $0) }
     }
 
+    public func loadRecipe(id: String) -> Recipe? {
+        let descriptor = FetchDescriptor<RecipeEntity>(predicate: #Predicate { $0.recipeId == id })
+        guard let entity = try? modelContext.fetch(descriptor).first else { return nil }
+        return decodeRecipe(from: entity)
+    }
+
     public func loadRecipe(slug: String) -> Recipe? {
         let descriptor = FetchDescriptor<RecipeEntity>(
             predicate: #Predicate<RecipeEntity> { entity in
