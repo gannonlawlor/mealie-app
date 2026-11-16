@@ -417,14 +417,6 @@ struct RecipeDetailView: View {
                         Text(ingredient.displayText)
                             .font(.body)
                         Spacer()
-                        if !recipeVM.isLocalMode {
-                            Button { addIngredient(ingredient) } label: {
-                                Image(systemName: "cart.badge.plus")
-                                    .frame(minWidth: 44, minHeight: 44)
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Add \(ingredient.displayText) to shopping list")
-                        }
                     }
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)
@@ -436,7 +428,8 @@ struct RecipeDetailView: View {
                         }
                     )
                     .cornerRadius(8)
-                    .accessibilityElement(children: .contain)
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .combine)
                     .accessibilityActions {
                         if !recipeVM.isLocalMode {
                             Button("Add to shopping list") { addIngredient(ingredient) }

@@ -2,6 +2,8 @@ package com.jackabee.mealie.screenshots
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.assertCountEquals
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.jackabee.mealie.data.store.PendingGroceryItem
@@ -49,6 +51,8 @@ class ShoppingListDetailScreenshotTest {
             }
         }
 
+        composeRule.onAllNodesWithContentDescription("Unchecked").assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription("Checked").assertCountEquals(0)
         composeRule.onRoot().captureRoboImage("$SNAPSHOT_DIR/ShoppingListDetail_sections.png")
     }
 }

@@ -2,6 +2,8 @@ package com.jackabee.mealie.screenshots
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.jackabee.mealie.ui.screens.recipes.RecipeDetailScreen
@@ -57,6 +59,26 @@ class RecipesScreenshotTest {
         }
 
         composeRule.onRoot().captureRoboImage("$SNAPSHOT_DIR/RecipesPane_compact.png")
+    }
+
+    @Test
+    fun recipeDetail_serverIngredients() {
+        val env = ScreenshotEnv(tmp.root)
+        // No image URL: this server-mode fixture stays entirely offline.
+        env.api.getRecipeHandler = { ScreenshotFixtures.carbonara.copy(id = null) }
+        composeRule.setContent {
+            ScreenshotTheme {
+                RecipeDetailScreen(
+                    slug = "spaghetti-carbonara",
+                    recipeViewModel = env.recipeViewModel,
+                    shoppingViewModel = env.shoppingViewModel,
+                    mealPlanViewModel = env.mealPlanViewModel,
+                    onBack = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText("Freshly ground black pepper").performScrollTo()
+        composeRule.onRoot().captureRoboImage("$SNAPSHOT_DIR/RecipeDetail_serverIngredients.png")
     }
 
     @Test

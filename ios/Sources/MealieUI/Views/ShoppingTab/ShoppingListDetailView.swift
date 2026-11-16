@@ -174,10 +174,6 @@ struct ShoppingListDetailView: View {
                 Task { await shoppingVM.toggleItem(item) }
             }) {
                 HStack(spacing: 12) {
-                    Image(systemName: item.checked == true ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(item.checked == true ? .green : .secondary)
-                        .font(.title3)
-
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.displayText)
                             .strikethrough(item.checked == true)
@@ -193,6 +189,8 @@ struct ShoppingListDetailView: View {
                     Spacer()
                 }
             }
+            .accessibilityValue(item.checked == true ? "Completed" : "To buy")
+            .accessibilityHint(item.checked == true ? "Mark as to buy" : "Mark as completed")
 
             Button(action: {
                 Task { await shoppingVM.deleteItem(item) }

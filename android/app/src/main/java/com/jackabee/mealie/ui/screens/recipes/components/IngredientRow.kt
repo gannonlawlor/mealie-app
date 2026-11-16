@@ -14,10 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AddShoppingCart
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -113,10 +109,5 @@ fun IngredientRow(
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
-        if (longPressEnabled) {
-            IconButton(onClick = { onLongPressComplete(ingredient) }) {
-                Icon(Icons.Outlined.AddShoppingCart, contentDescription = "Add ${ingredient.displayText} to shopping list")
-            }
-        }
     }
 }

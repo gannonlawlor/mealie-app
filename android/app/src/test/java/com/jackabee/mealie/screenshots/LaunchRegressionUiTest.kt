@@ -6,6 +6,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.semantics.SemanticsActions
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.jackabee.mealie.data.model.Recipe
@@ -52,7 +55,7 @@ class LaunchRegressionUiTest {
         assertEquals("Printing is unavailable. Please try again.", error)
     }
 
-    @Test fun ingredientHasVisibleAndAccessibleShoppingActions() {
+    @Test fun ingredientUsesLongPressAndAccessibleShoppingActionsWithoutAnIcon() {
         val ingredient = com.jackabee.mealie.data.model.RecipeIngredient(note = "2 cups rice")
         var added = 0
         compose.setContent {
@@ -60,7 +63,10 @@ class LaunchRegressionUiTest {
                 com.jackabee.mealie.ui.screens.recipes.components.IngredientRow(ingredient, true, { added++ })
             }
         }
-        compose.onNodeWithContentDescription("Add 2 cups rice to shopping list").performClick()
+        compose.onNodeWithContentDescription("Add 2 cups rice to shopping list").assertDoesNotExist()
+        compose.onNodeWithText("2 cups rice").performTouchInput { click() }
+        assertEquals(0, added)
+        compose.onNodeWithText("2 cups rice").performTouchInput { longClick() }
         assertEquals(1, added)
         val actions = compose.onNodeWithText("2 cups rice").fetchSemanticsNode().config[SemanticsActions.CustomActions]
         compose.runOnIdle { assertTrue(actions.single { it.label == "Add to shopping list" }.action()) }

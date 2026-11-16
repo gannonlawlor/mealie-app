@@ -120,6 +120,21 @@ final class MealieUISnapshotTests: XCTestCase {
         assertDeviceSnapshot(of: recipeDetailContent(), config: phone, dark: true)
     }
 
+    func testIngredientsServerMode() {
+        let recipeVM = RecipeViewModel()
+        recipeVM.isLocalMode = false
+        let detail = RecipeDetailView(recipeVM: recipeVM, shoppingVM: ShoppingViewModel(),
+            mealPlanVM: MealPlanViewModel(), slug: "spaghetti-carbonara")
+        let view = NavigationStack {
+            ScrollView {
+                detail.ingredientsSection(Fixtures.ingredients).padding()
+            }
+            .navigationTitle("Spaghetti Carbonara")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        assertDeviceSnapshot(of: view, config: phone)
+    }
+
     // MARK: - Meal plan
 
     func testMealPlanViewWeek() {
